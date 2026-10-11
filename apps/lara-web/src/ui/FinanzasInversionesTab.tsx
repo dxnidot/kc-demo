@@ -1,14 +1,14 @@
-import { useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { Card } from "./components/Card";
 import { claseFocoInterno } from "./components/foco";
 import { Tag } from "./components/Tag";
 
 const cuentas = [
-  { id: "mx", etiqueta: "MX · MXN" },
-  { id: "usa", etiqueta: "USA · USD" },
+  { id: "mx", etiqueta: "MX · MXN", ruta: "/finanzas/inversiones/mx" },
+  { id: "usa", etiqueta: "USA · USD", ruta: "/finanzas/inversiones/usa" },
 ] as const;
 
-type CuentaId = (typeof cuentas)[number]["id"];
+export type CuentaId = (typeof cuentas)[number]["id"];
 
 const contenido: Record<CuentaId, { etiqueta: string; titulo: string; descripcion: string; puntos: string[] }> = {
   mx: {
@@ -35,16 +35,20 @@ const contenido: Record<CuentaId, { etiqueta: string; titulo: string; descripcio
   },
 };
 
+interface FinanzasInversionesTabProps {
+  cuenta: CuentaId;
+}
+
 /**
- * Pestaña Inversiones: selector de cuenta MX | USA (se refleja en ?mercado=) y estado vacío hasta que exista el
- * importador de estados de cuenta.
+ * Pantalla Inversiones por cuenta (MX | USA): estado vacío hasta que exista el importador de estados de cuenta.
+ * Cada cuenta tiene su propia ruta (/finanzas/inversiones/mx y /usa); el selector navega entre ambas en vez
+ * de usar un query param.
  * @author Daniel Tovar
  * @since 2026-09-30
  * @modified Daniel Tovar 2026-10-10 Una sola pestaña con selector MX | USA (antes Trading MX y Trading USA).
+ * @modified Daniel Tovar 2026-10-11 UI-12: cuenta por prop y ruta propia (antes ?mercado=), sidebar con Inversiones desplegable.
  */
-export function FinanzasInversionesTab() {
-  const [parametros, setParametros] = useSearchParams();
-  const cuenta: CuentaId = parametros.get("mercado") === "usa" ? "usa" : "mx";
+export function FinanzasInversionesTab({ cuenta }: FinanzasInversionesTabProps) {
   const texto = contenido[cuenta];
 
   return (
@@ -55,17 +59,16 @@ export function FinanzasInversionesTab() {
         role="group"
       >
         {cuentas.map((opcion) => (
-          <button
-            aria-pressed={cuenta === opcion.id}
+          <Link
+            aria-current={cuenta === opcion.id ? "page" : undefined}
             className={`min-h-11 rounded-pill px-3 font-mono text-xs shell:min-h-7.5 ${claseFocoInterno} ${
               cuenta === opcion.id ? "bg-accent text-accent-ink" : "text-muted"
             }`}
             key={opcion.id}
-            onClick={() => setParametros(opcion.id === "mx" ? {} : { mercado: opcion.id }, { replace: true })}
-            type="button"
+            to={opcion.ruta}
           >
             {opcion.etiqueta}
-          </button>
+          </Link>
         ))}
       </div>
       <Card className="items-start" espacio="amplio" relleno="amplio">

@@ -70,10 +70,7 @@ function montar(ruta: string) {
   );
 }
 
-const vistas = [
-  { ruta: "/estado", enlace: "Estado del lab", titulo: "Estado del lab" },
-  { ruta: "/gastos-fijos", enlace: "Gastos fijos", titulo: "Gastos fijos" },
-];
+const vistas = [{ ruta: "/estado", enlace: "Estado del lab", titulo: "Estado del lab" }];
 
 // Vistas de LABORATORIO: ya no están en el sidebar del chat, solo se llega vía el menú de usuario.
 const vistasLaboratorio = [
@@ -83,6 +80,16 @@ const vistasLaboratorio = [
   { ruta: "/herramientas", enlace: "Herramientas MCP", titulo: "Herramientas MCP" },
   { ruta: "/menu-por-rol", enlace: "Menú por rol", titulo: "Menú por rol" },
   { ruta: "/usuarios", enlace: "Usuarios y roles", titulo: "Usuarios y roles" },
+];
+
+// Vistas de FINANZAS: sección propia del sidebar (mismo patrón que LABORATORIO). Inversiones (desplegable)
+// y Chat de Finanzas (sin h1) se prueban por separado.
+const vistasFinanzas = [
+  { ruta: "/finanzas/resumen", enlace: "Resumen", titulo: "Finanzas" },
+  { ruta: "/finanzas/gastos", enlace: "Gastos", titulo: "Finanzas" },
+  { ruta: "/gastos-fijos", enlace: "Gastos fijos", titulo: "Gastos fijos" },
+  { ruta: "/finanzas/ingresos", enlace: "Ingresos", titulo: "Finanzas" },
+  { ruta: "/finanzas/tarjetas", enlace: "Tarjetas y pagos", titulo: "Finanzas" },
 ];
 
 describe("login", () => {
@@ -312,7 +319,7 @@ describe("aviso de ADR-0007 junto al campo del chat", () => {
   it("el asistente de Finanzas también lo muestra junto a su campo", async () => {
     prepararFetch();
 
-    montar("/finanzas/resumen");
+    montar("/finanzas/chat");
 
     const campo = await screen.findByRole("textbox", { name: "Mensaje para el asistente de finanzas" });
     expect(descripcionDe(campo)).toContain("No incluyas datos reales");
@@ -351,6 +358,64 @@ describe("sidebar y rutas", () => {
     },
   );
 
+  it.each(vistasFinanzas)(
+    "Finanzas: la entrada $enlace abre su vista y marca aria-current",
+    async (vista) => {
+      prepararFetch();
+
+      montar(vista.ruta);
+
+      expect(await screen.findByRole("heading", { name: vista.titulo, level: 1 })).toBeTruthy();
+      expect(screen.getByRole("link", { name: vista.enlace }).getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("button", { name: "Volver al chat" })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "FINANZAS", level: 2 })).toBeTruthy();
+    },
+  );
+
+  it("Finanzas: Chat de Finanzas abre el asistente como ruta propia del sidebar", async () => {
+    prepararFetch();
+
+    montar("/finanzas/chat");
+
+    expect(await screen.findByRole("heading", { name: "Asistente de finanzas", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Chat de Finanzas" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Volver al chat" })).toBeTruthy();
+  });
+
+  it("Finanzas: Inversiones es un desplegable cerrado con MX y USA como hijos", async () => {
+    prepararFetch();
+
+    montar("/finanzas/resumen");
+
+    const boton = await screen.findByRole("button", { name: "Inversiones" });
+    expect(boton.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("link", { name: "MX" })).toBeNull();
+
+    fireEvent.click(boton);
+
+    expect(boton.getAttribute("aria-expanded")).toBe("true");
+    const mx = screen.getByRole("link", { name: "MX" });
+    const usa = screen.getByRole("link", { name: "USA" });
+    expect(boton.getAttribute("aria-controls")).toBe(mx.closest('[role="group"]')?.id);
+    expect(usa).toBeTruthy();
+
+    fireEvent.click(mx);
+
+    expect(await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta MX" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "MX" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("Finanzas: Inversiones arranca abierto si la ruta activa es MX o USA", async () => {
+    prepararFetch();
+
+    montar("/finanzas/inversiones/usa");
+
+    const boton = await screen.findByRole("button", { name: "Inversiones" });
+    expect(boton.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("link", { name: "USA" }).getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta USA" })).toBeTruthy();
+  });
+
   it("el menú de usuario abre Configuración y lleva a Laboratorio", async () => {
     prepararFetch();
 
@@ -377,10 +442,10 @@ describe("sidebar y rutas", () => {
     expect(screen.queryByText("Configuración")).toBeNull();
     expect(screen.queryByRole("link", { name: "Chat" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Reportes" })).toBeNull();
-    expect(screen.queryByText("LABORATORIO")).toBeNull();
-    for (const titulo of ["PERSONAL · SOLO LOCAL", "RECIENTES"]) {
-      expect(screen.getByText(titulo)).toBeTruthy();
+    for (const titulo of ["LABORATORIO", "FINANZAS"]) {
+      expect(screen.queryByText(titulo)).toBeNull();
     }
+    expect(screen.getByText("RECIENTES")).toBeTruthy();
     expect(screen.getByText("ver-menu · LOCAL")).toBeTruthy();
   });
 
@@ -403,7 +468,7 @@ describe("sidebar y rutas", () => {
   it("Nuevo chat lleva a /chat desde otra vista", async () => {
     prepararFetch();
 
-    montar("/gastos-fijos");
+    montar("/estado");
     fireEvent.click(await screen.findByRole("button", { name: "Nuevo chat" }));
 
     expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
@@ -418,42 +483,39 @@ describe("sidebar y rutas", () => {
     expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
   });
 
+  it("Volver al chat lleva a /chat desde una vista de Finanzas", async () => {
+    prepararFetch();
+
+    montar("/finanzas/resumen");
+    fireEvent.click(await screen.findByRole("button", { name: "Volver al chat" }));
+
+    expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
+  });
+
   it.each(["/finanzas", "/finanzas/inexistente"])(
-    "redirige %s a /finanzas/resumen y marca activa Finanzas",
+    "redirige %s a /finanzas/resumen y marca activo Resumen",
     async (ruta) => {
       prepararFetch();
 
       montar(ruta);
 
-      expect(await screen.findByRole("heading", { name: "Finanzas" })).toBeTruthy();
-      expect(screen.getByRole("tab", { name: "Resumen" }).getAttribute("aria-selected")).toBe("true");
-      expect(screen.getByRole("link", { name: "Finanzas" }).getAttribute("aria-current")).toBe("page");
+      expect(await screen.findByRole("heading", { name: "Finanzas", level: 1 })).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Resumen" }).getAttribute("aria-current")).toBe("page");
     },
   );
 
-  it("redirige /finanzas/pagos a /finanzas/tarjetas y no ofrece la entrada Pagos", async () => {
+  it("redirige /finanzas/pagos a /finanzas/tarjetas", async () => {
     prepararFetch();
 
     montar("/finanzas/pagos");
 
-    expect(
-      (await screen.findByRole("tab", { name: "Tarjetas y pagos" })).getAttribute("aria-selected"),
-    ).toBe("true");
+    await screen.findByRole("heading", { name: "Finanzas", level: 1 });
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "Tarjetas y pagos" }).getAttribute("aria-current")).toBe(
+        "page",
+      ),
+    );
     expect(screen.queryByRole("link", { name: "Pagos" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Finanzas" }).getAttribute("aria-current")).toBe("page");
-  });
-
-  it("mantiene Finanzas activa en cualquier /finanzas/* y navega entre pestañas", async () => {
-    prepararFetch();
-
-    montar("/finanzas/gastos");
-
-    expect((await screen.findByRole("tab", { name: "Gastos" })).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("link", { name: "Finanzas" }).getAttribute("aria-current")).toBe("page");
-
-    fireEvent.click(screen.getByRole("tab", { name: "Inversiones" }));
-
-    expect(screen.getByRole("tab", { name: "Inversiones" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("las rutas viejas Trading MX y Trading USA redirigen a Inversiones con su cuenta", async () => {
@@ -462,24 +524,19 @@ describe("sidebar y rutas", () => {
     montar("/finanzas/trading-mx");
 
     expect(
-      (await screen.findByRole("tab", { name: "Inversiones" })).getAttribute("aria-selected"),
-    ).toBe("true");
-    const grupo = await screen.findByRole("group", { name: "Cuenta" });
-    expect(within(grupo).getByRole("button", { name: "MX · MXN" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.queryByRole("tab", { name: /Trading/ })).toBeNull();
+      await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta MX" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "MX" }).getAttribute("aria-current")).toBe("page");
     cleanup();
 
+    prepararFetch();
     montar("/finanzas/trading-usa");
 
     expect(
-      (await screen.findByRole("tab", { name: "Inversiones" })).getAttribute("aria-selected"),
-    ).toBe("true");
-    expect(
-      within(await screen.findByRole("group", { name: "Cuenta" }))
-        .getByRole("button", { name: "USA · USD" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
-    expect(document.title).toBe("Finanzas · Inversiones · Lara");
+      await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta USA" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "USA" }).getAttribute("aria-current")).toBe("page");
+    await waitFor(() => expect(document.title).toBe("Finanzas · Inversiones · Lara"));
   });
 
   it("sin ver_agentes, ver_identidad ni ver-finanzas no renderiza esas secciones en el DOM", async () => {
@@ -490,7 +547,7 @@ describe("sidebar y rutas", () => {
 
     expect(await screen.findByRole("heading", { name: /Hola, beto/ })).toBeTruthy();
     expect(screen.getByText("Estado del lab")).toBeTruthy();
-    for (const titulo of ["PERSONAL · SOLO LOCAL", "LABORATORIO"]) {
+    for (const titulo of ["LABORATORIO", "FINANZAS"]) {
       expect(screen.queryByText(titulo)).toBeNull();
     }
     for (const enlace of [
@@ -500,7 +557,8 @@ describe("sidebar y rutas", () => {
       "Herramientas MCP",
       "Menú por rol",
       "Usuarios y roles",
-      "Finanzas",
+      "Resumen",
+      "Chat de Finanzas",
       "Gastos fijos",
     ]) {
       expect(screen.queryByRole("link", { name: enlace })).toBeNull();

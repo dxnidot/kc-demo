@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { pestanasFinanzas } from "./finanzasPestanas";
 
 const titulosPorRuta: Record<string, string> = {
   "/chat": "Chat",
@@ -11,14 +10,18 @@ const titulosPorRuta: Record<string, string> = {
   "/menu-por-rol": "Menú por rol",
   "/usuarios": "Usuarios y roles",
   "/gastos-fijos": "Gastos fijos",
+  "/finanzas/resumen": "Finanzas · Resumen",
+  "/finanzas/chat": "Finanzas · Chat de Finanzas",
+  "/finanzas/gastos": "Finanzas · Gastos",
+  "/finanzas/ingresos": "Finanzas · Ingresos",
+  "/finanzas/tarjetas": "Finanzas · Tarjetas y pagos",
+  "/finanzas/inversiones/mx": "Finanzas · Inversiones",
+  "/finanzas/inversiones/usa": "Finanzas · Inversiones",
 };
 
 /** Título del documento de una ruta: lo más específico primero y "Lara" al final. */
 export function tituloDeRuta(pathname: string): string {
-  const pestana = pathname.startsWith("/finanzas/")
-    ? pestanasFinanzas.find((candidata) => pathname === `/finanzas/${candidata.id}`)
-    : undefined;
-  const titulo = pestana ? `Finanzas · ${pestana.etiqueta}` : titulosPorRuta[pathname];
+  const titulo = titulosPorRuta[pathname];
   return titulo ? `${titulo} · Lara` : "Lara";
 }
 

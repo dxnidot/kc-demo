@@ -73,7 +73,8 @@ const rutas = [
   { ruta: "/finanzas/gastos", titulo: "Finanzas" },
   { ruta: "/finanzas/ingresos", titulo: "Finanzas" },
   { ruta: "/finanzas/tarjetas", titulo: "Finanzas" },
-  { ruta: "/finanzas/inversiones", titulo: "Finanzas" },
+  { ruta: "/finanzas/inversiones/mx", titulo: "Finanzas" },
+  { ruta: "/finanzas/inversiones/usa", titulo: "Finanzas" },
 ];
 
 function contenedoresConScroll(raiz: HTMLElement) {
@@ -101,7 +102,7 @@ describe("estructura PageLayout por ruta", () => {
         "shrink-0",
       );
       const contenidos = contenedoresConScroll(principal);
-      expect(contenidos).toHaveLength(vista.ruta.startsWith("/finanzas") ? 2 : 1);
+      expect(contenidos).toHaveLength(1);
       for (const contenido of contenidos) {
         expect(contenido.className).toContain("overflow-y-auto");
         expect(contenido.className).toContain("min-h-0");
@@ -120,15 +121,16 @@ describe("estructura PageLayout por ruta", () => {
     expect(contenido?.className).toContain("overflow-y-auto");
   });
 
-  it("el panel del asistente fija cabecera y composer y deja el hilo como único scroll", async () => {
-    montar("/finanzas/resumen");
+  it("el chat de Finanzas (ruta propia) fija cabecera y composer y deja el hilo como único scroll", async () => {
+    montar("/finanzas/chat");
 
-    const panel = await screen.findByRole("complementary", { name: "Asistente de finanzas" });
-    expect(panel.querySelector('[data-slot="page-header"]')?.className).toContain("shrink-0");
-    expect(panel.querySelector('[data-slot="page-footer"]')?.className).toContain("shrink-0");
-    const hilo = within(panel).getByRole("log");
+    await screen.findByRole("textbox", { name: "Mensaje para el asistente de finanzas" });
+    const principal = screen.getByRole("main");
+    expect(principal.querySelector('[data-slot="page-header"]')?.className).toContain("shrink-0");
+    expect(principal.querySelector('[data-slot="page-footer"]')?.className).toContain("shrink-0");
+    const hilo = within(principal).getByRole("log");
     expect(hilo.className).toContain("overflow-y-auto");
-    expect(contenedoresConScroll(panel)).toEqual([hilo]);
+    expect(contenedoresConScroll(principal)).toEqual([hilo]);
   });
 });
 
@@ -141,9 +143,7 @@ describe("landmarks de la barra lateral", () => {
     expect(lateral.contains(principal)).toBe(false);
     expect(principal.contains(lateral)).toBe(false);
     const nav = within(lateral).getByRole("navigation", { name: "Principal" });
-    for (const enlace of ["Estado del lab", "Finanzas"]) {
-      expect(within(nav).getByRole("link", { name: enlace })).toBeTruthy();
-    }
+    expect(within(nav).getByRole("link", { name: "Estado del lab" })).toBeTruthy();
     expect(within(lateral).queryAllByRole("region")).toHaveLength(0);
   });
 });
@@ -192,7 +192,7 @@ describe("navegación como drawer bajo 980px", () => {
     expect(dialogo.getAttribute("aria-modal")).toBe("true");
     expect(abrir.getAttribute("aria-expanded")).toBe("true");
     expect(dialogo.contains(document.activeElement)).toBe(true);
-    expect(within(dialogo).getByRole("link", { name: "Finanzas" })).toBeTruthy();
+    expect(within(dialogo).getByRole("link", { name: "Estado del lab" })).toBeTruthy();
     expect(screen.getByTestId("fondo-navegacion")).toBeTruthy();
   });
 
@@ -250,12 +250,12 @@ describe("navegación como drawer bajo 980px", () => {
 
   it("se cierra al navegar a otra ruta", async () => {
     simularVistaEstrecha();
-    montar("/estado");
+    montar("/chat");
     fireEvent.click(await screen.findByRole("button", { name: "Abrir navegación" }));
 
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Finanzas" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Estado del lab" }));
 
-    expect(await screen.findByRole("heading", { name: "Finanzas", level: 1 })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Estado del lab", level: 1 })).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(
       screen.getByRole("button", { name: "Abrir navegación" }).getAttribute("aria-expanded"),

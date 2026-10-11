@@ -1,18 +1,23 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowDownRight,
   ArrowLeft,
+  ArrowUpLeft,
   Calendar,
-  ChartNoAxesColumn,
+  CreditCard,
   Database,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Menu,
+  MessageCircle,
   Network,
   PanelLeft,
   PanelLeftOpen,
   Plus,
   SunMoon,
   TextAlignStart,
+  TrendingUp,
   Users,
   Waypoints,
   Wrench,
@@ -31,9 +36,14 @@ import { IndicadorMock } from "./components/IndicadorMock";
 import { LaraLogo } from "./components/LaraLogo";
 import { PageLayout } from "./components/PageLayout";
 import { idBarraLateral, Sidebar } from "./components/Sidebar";
-import { SidebarItem } from "./components/SidebarItem";
+import { SidebarGroup, SidebarItem } from "./components/SidebarItem";
 import { ChatPage } from "./ChatPage";
-import { FinanzasPage } from "./FinanzasPage";
+import { FinanzasChatPage } from "./FinanzasChatPage";
+import { FinanzasGastosPage } from "./FinanzasGastosPage";
+import { FinanzasIngresosPage } from "./FinanzasIngresosPage";
+import { FinanzasInversionesPage } from "./FinanzasInversionesPage";
+import { FinanzasResumenPage } from "./FinanzasResumenPage";
+import { FinanzasTarjetasPage } from "./FinanzasTarjetasPage";
 import { LoginPage } from "./LoginPage";
 import { ChatSessionsProvider, useChatSessions } from "./useChatSessions";
 import { useHasRole } from "./useHasRole";
@@ -83,6 +93,9 @@ const iconoNav = "size-4.5 shrink-0";
  * @modified Daniel Tovar 2026-10-10 Esqueletos de carga y reintento en Recientes.
  * @modified Daniel Tovar 2026-10-10 Las rutas viejas de Trading MX y Trading USA redirigen a Inversiones.
  * @modified Daniel Tovar 2026-10-10 El foco al contraer/mostrar la barra ya no se pierde si un efecto viejo corre antes (carrera del montaje).
+ * @modified Daniel Tovar 2026-10-11 UI-12: FINANZAS es su propia sección del sidebar (mismo patrón que LABORATORIO),
+ * ya no un item plano de PERSONAL. Gastos fijos se muda ahí, Inversiones es un desplegable con MX/USA y el chat
+ * de Finanzas pasa de panel deslizante a ruta propia.
  */
 export function AppShell() {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
@@ -207,22 +220,50 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
   useTituloDocumento(tituloDeRuta(pathname));
   const puedeVerAgentes = useHasRole(usuario, ["ver_agentes", "admin"]);
   const puedeVerIdentidad = useHasRole(usuario, ["ver_identidad", "admin"]);
-  const puedeVerPersonal = useHasRole(usuario, ["ver-finanzas", "admin"]);
+  const puedeVerFinanzas = useHasRole(usuario, ["ver-finanzas", "admin"]);
 
-  const enFinanzas = pathname === "/finanzas" || pathname.startsWith("/finanzas/");
+  // FINANZAS reemplaza todo el panel lateral (mismo patrón que LABORATORIO), no un item plano de PERSONAL.
+  const enFinanzas =
+    pathname === "/finanzas" || pathname.startsWith("/finanzas/") || pathname === "/gastos-fijos";
+  const enInversiones = pathname.startsWith("/finanzas/inversiones");
 
-  const itemsPersonal: EntradaNav[] = puedeVerPersonal
+  const itemsFinanzas: EntradaNav[] = puedeVerFinanzas
     ? [
         {
-          activo: enFinanzas,
-          etiqueta: "Finanzas",
-          icono: <ChartNoAxesColumn aria-hidden="true" className={iconoNav} />,
-          ruta: "/finanzas",
+          etiqueta: "Resumen",
+          icono: <LayoutGrid aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/resumen",
+        },
+        {
+          etiqueta: "Chat de Finanzas",
+          icono: <MessageCircle aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/chat",
+        },
+        {
+          etiqueta: "Gastos",
+          icono: <ArrowDownRight aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/gastos",
         },
         {
           etiqueta: "Gastos fijos",
           icono: <Calendar aria-hidden="true" className={iconoNav} />,
           ruta: "/gastos-fijos",
+        },
+        {
+          etiqueta: "Ingresos",
+          icono: <ArrowUpLeft aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/ingresos",
+        },
+        {
+          etiqueta: "Tarjetas y pagos",
+          icono: <CreditCard aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/tarjetas",
+        },
+        {
+          activo: enInversiones,
+          etiqueta: "Inversiones",
+          icono: <TrendingUp aria-hidden="true" className={iconoNav} />,
+          ruta: "/finanzas/inversiones/mx",
         },
       ]
     : [];
@@ -438,7 +479,7 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
               )}
             </div>
 
-            {enLaboratorio ? (
+            {enLaboratorio || enFinanzas ? (
               <button
                 className={`flex min-h-11 w-full shrink-0 items-center gap-2.5 rounded-button px-3.5 text-sm font-semibold text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFoco}`}
                 onClick={() => navigate("/chat")}
@@ -473,6 +514,42 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
                   ))}
                 </SeccionNav>
               </div>
+            ) : enFinanzas ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto">
+                <SeccionNav titulo="FINANZAS">
+                  {itemsFinanzas.map((item) =>
+                    item.etiqueta === "Inversiones" ? (
+                      <SidebarGroup
+                        abiertoPorDefecto={enInversiones}
+                        etiqueta="Inversiones"
+                        hijos={[
+                          {
+                            activo: enRuta("/finanzas/inversiones/mx"),
+                            etiqueta: "MX",
+                            to: "/finanzas/inversiones/mx",
+                          },
+                          {
+                            activo: enRuta("/finanzas/inversiones/usa"),
+                            etiqueta: "USA",
+                            to: "/finanzas/inversiones/usa",
+                          },
+                        ]}
+                        icono={item.icono}
+                        key="inversiones"
+                      />
+                    ) : (
+                      <SidebarItem
+                        active={enRuta(item.ruta)}
+                        icono={item.icono}
+                        key={item.ruta}
+                        to={item.ruta}
+                      >
+                        {item.etiqueta}
+                      </SidebarItem>
+                    ),
+                  )}
+                </SeccionNav>
+              </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto">
                 <nav aria-label="Principal" className="flex shrink-0 flex-col gap-3.5">
@@ -483,21 +560,6 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
                   >
                     Estado del lab
                   </SidebarItem>
-
-                  {itemsPersonal.length > 0 && (
-                    <SeccionNav titulo="PERSONAL · SOLO LOCAL">
-                      {itemsPersonal.map((item) => (
-                        <SidebarItem
-                          active={item.activo ?? enRuta(item.ruta)}
-                          icono={item.icono}
-                          key={item.ruta}
-                          to={item.ruta}
-                        >
-                          {item.etiqueta}
-                        </SidebarItem>
-                      ))}
-                    </SeccionNav>
-                  )}
                 </nav>
 
                 <div className="flex shrink-0 flex-col gap-0.5">
@@ -637,10 +699,10 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
                   <RielItem activo={enRuta(item.ruta)} etiqueta={item.etiqueta} icono={item.icono} key={item.ruta} to={item.ruta} />
                 ))}
               </nav>
-            ) : (
-              <nav aria-label="Principal" className="flex flex-col items-center gap-1">
-                <RielItem activo={enRuta("/estado")} etiqueta="Estado del lab" icono={<LayoutDashboard aria-hidden="true" className={iconoNav} />} to="/estado" />
-                {itemsPersonal.map((item) => (
+            ) : enFinanzas ? (
+              <nav aria-label="Finanzas" className="flex flex-col items-center gap-1">
+                <RielItem activo={false} etiqueta="Volver al chat" icono={<ArrowLeft aria-hidden="true" className={iconoNav} />} to="/chat" />
+                {itemsFinanzas.map((item) => (
                   <RielItem
                     activo={item.activo ?? enRuta(item.ruta)}
                     etiqueta={item.etiqueta}
@@ -649,6 +711,10 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
                     to={item.ruta}
                   />
                 ))}
+              </nav>
+            ) : (
+              <nav aria-label="Principal" className="flex flex-col items-center gap-1">
+                <RielItem activo={enRuta("/estado")} etiqueta="Estado del lab" icono={<LayoutDashboard aria-hidden="true" className={iconoNav} />} to="/estado" />
               </nav>
             )}
           </div>
@@ -700,30 +766,63 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
               <Route
                 path="/gastos-fijos"
                 element={protegido(
-                  puedeVerPersonal,
+                  puedeVerFinanzas,
                   <GastosFijosPage gastosFijos={adaptadores.gastosFijos} />,
                 )}
               />
               <Route
                 path="/finanzas"
-                element={protegido(puedeVerPersonal, <Navigate replace to="/finanzas/resumen" />)}
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
               />
               <Route
+                path="/finanzas/resumen"
+                element={protegido(puedeVerFinanzas, <FinanzasResumenPage />)}
+              />
+              <Route
+                path="/finanzas/chat"
+                element={protegido(puedeVerFinanzas, <FinanzasChatPage />)}
+              />
+              <Route
+                path="/finanzas/gastos"
+                element={protegido(puedeVerFinanzas, <FinanzasGastosPage />)}
+              />
+              <Route
+                path="/finanzas/ingresos"
+                element={protegido(puedeVerFinanzas, <FinanzasIngresosPage />)}
+              />
+              <Route
+                path="/finanzas/tarjetas"
+                element={protegido(puedeVerFinanzas, <FinanzasTarjetasPage />)}
+              />
+              <Route
+                path="/finanzas/inversiones"
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
+              />
+              <Route
+                path="/finanzas/inversiones/mx"
+                element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="mx" />)}
+              />
+              <Route
+                path="/finanzas/inversiones/usa"
+                element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="usa" />)}
+              />
+              {/* Rutas viejas: Finanzas con pestañas, inversiones por ?mercado= y Pagos como pestaña. */}
+              <Route
                 path="/finanzas/pagos"
-                element={protegido(puedeVerPersonal, <Navigate replace to="/finanzas/tarjetas" />)}
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/tarjetas" />)}
               />
               <Route
                 path="/finanzas/trading-mx"
-                element={protegido(puedeVerPersonal, <Navigate replace to="/finanzas/inversiones" />)}
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
               />
               <Route
                 path="/finanzas/trading-usa"
-                element={protegido(
-                  puedeVerPersonal,
-                  <Navigate replace to="/finanzas/inversiones?mercado=usa" />,
-                )}
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/usa" />)}
               />
-              <Route path="/finanzas/:tab" element={protegido(puedeVerPersonal, <FinanzasPage />)} />
+              <Route
+                path="/finanzas/*"
+                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
+              />
               <Route path="*" element={<Navigate replace to="/chat" />} />
             </Routes>
           </Suspense>

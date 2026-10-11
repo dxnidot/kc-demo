@@ -25,12 +25,20 @@ import { useChatSessions } from "./useChatSessions";
 import { useTrampaFoco } from "./useTrampaFoco";
 
 interface FinanzasChatPanelProps {
-  abierto: boolean;
-  drawer: boolean;
+  /** Por defecto true: en pantallaCompleta siempre está visible. */
+  abierto?: boolean;
+  /** Por defecto false. Solo tiene sentido cuando no es pantallaCompleta (panel deslizante en angosto). */
+  drawer?: boolean;
   finanzas: FinanzasPort;
-  onCerrar: () => void;
+  /** Se omite en pantallaCompleta: no hay nada que cerrar, la navegación la ofrece el sidebar. */
+  onCerrar?: () => void;
   onImportConfirmed: () => void;
-  panelRef: RefObject<HTMLDivElement | null>;
+  /**
+   * Ruta propia (Chat de Finanzas) en vez de panel deslizante dentro de otra pantalla: ocupa todo el
+   * ancho, sin borde izquierdo ni botón de cerrar.
+   */
+  pantallaCompleta?: boolean;
+  panelRef?: RefObject<HTMLDivElement | null>;
 }
 
 interface ImportacionPendiente {
@@ -75,13 +83,16 @@ const componentesMarkdown: Components = {
  * @modified Daniel Tovar 2026-10-10 Aviso fijo de ADR-0007 junto al campo de mensaje.
  * @modified Daniel Tovar 2026-10-10 Esqueleto y reintento al abrir la conversación.
  * @modified Daniel Tovar 2026-10-10 Catálogo importado de domain/catalogoLab.
+ * @modified Daniel Tovar 2026-10-11 UI-12: modo pantallaCompleta para la ruta propia "Chat de Finanzas"
+ * (antes solo panel deslizante dentro de FinanzasPage); props abierto/drawer/onCerrar/panelRef opcionales.
  */
 export function FinanzasChatPanel({
-  abierto,
-  drawer,
+  abierto = true,
+  drawer = false,
   finanzas,
   onCerrar,
   onImportConfirmed,
+  pantallaCompleta = false,
   panelRef,
 }: FinanzasChatPanelProps) {
   const {
@@ -107,6 +118,9 @@ export function FinanzasChatPanel({
   const sesionCargada = useRef<string | null>(null);
   const entradaArchivo = useRef<HTMLInputElement>(null);
   const hilo = useRef<HTMLDivElement>(null);
+  const panelInterno = useRef<HTMLDivElement | null>(null);
+  const refPanel = panelRef ?? panelInterno;
+  const cerrar = onCerrar ?? (() => {});
 
   useEffect(() => {
     if (!finanzasSessionId) {
@@ -149,7 +163,7 @@ export function FinanzasChatPanel({
     };
   }, [finanzasSessionId, obtenerSesion, intentoSesion]);
 
-  useTrampaFoco(drawer && abierto, onCerrar, panelRef);
+  useTrampaFoco(drawer && abierto, cerrar, refPanel);
 
   useEffect(() => {
     const lista = hilo.current;
@@ -296,18 +310,22 @@ export function FinanzasChatPanel({
           aria-hidden="true"
           className="fixed inset-0 z-20 bg-bg/70"
           data-testid="fondo-asistente"
-          onClick={onCerrar}
+          onClick={cerrar}
         />
       )}
       <div
         aria-label="Asistente de finanzas"
         aria-modal={drawer ? true : undefined}
-        className={`flex w-96 shrink-0 flex-col border-l border-border bg-surface outline-none ${
-          drawer ? "fixed inset-y-0 right-0 z-30 max-w-full" : "h-full"
-        }`}
+        className={
+          pantallaCompleta
+            ? "flex min-h-0 min-w-0 flex-1 flex-col bg-surface outline-none"
+            : `flex w-96 shrink-0 flex-col border-l border-border bg-surface outline-none ${
+                drawer ? "fixed inset-y-0 right-0 z-30 max-w-full" : "h-full"
+              }`
+        }
         hidden={!abierto}
-        ref={panelRef}
-        role={drawer ? "dialog" : "complementary"}
+        ref={refPanel}
+        role={pantallaCompleta ? undefined : drawer ? "dialog" : "complementary"}
         tabIndex={-1}
       >
         <PageLayout
@@ -319,14 +337,16 @@ export function FinanzasChatPanel({
                   agente finanzas · confirma antes de guardar
                 </span>
               </div>
-              <IconButton
-                aria-label="Cerrar asistente"
-                onClick={onCerrar}
-                tamano="compacto"
-                tono="atenuado"
-              >
-                <X aria-hidden="true" className="size-4.5" />
-              </IconButton>
+              {!pantallaCompleta && (
+                <IconButton
+                  aria-label="Cerrar asistente"
+                  onClick={cerrar}
+                  tamano="compacto"
+                  tono="atenuado"
+                >
+                  <X aria-hidden="true" className="size-4.5" />
+                </IconButton>
+              )}
             </header>
           }
           contenidoProps={{
