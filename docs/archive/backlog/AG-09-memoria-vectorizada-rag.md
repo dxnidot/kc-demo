@@ -1,6 +1,7 @@
 # AG-09 · Memoria vectorizada con RAG
 
-- Estado: En curso
+- Estado: Hecho (lo planeado para esta iteración; MemoriaPort real queda fuera de alcance, ver Notas)
+- Cerrado: 2026-10-11
 - Prioridad: Alta
 - Parte del lab: fuera de los módulos originales (iniciativa nueva)
 - Depende de: AG-01
@@ -19,7 +20,10 @@
   - docs/decisions/ (ADR nuevo)
 - Notas:
   - Confirmado: paso 1 hecho (2026-10-11) — `infra/memoria/compose.yaml` levanta `pgvector/pgvector:pg17` en el puerto 5434, con `init/01-schema.sql` aplicando `CREATE EXTENSION vector`, las tablas `colecciones_memoria`/`fragmentos_memoria` (embedding `vector(768)`) y el índice HNSW. Verificado en vivo con `docker compose up -d` + `\dx`/`\dt`/`\d fragmentos_memoria`: extensión `vector` 0.8.7 instalada, tablas e índice HNSW creados correctamente. Contenedor bajado después de verificar (`docker compose down`, sin `-v`, volumen conservado).
-  - Pendiente (siguiente paso): script de ingesta que trocee `docs/archive/**` + el snapshot y genere los embeddings con `gemini/gemini-embedding-001`; luego el script de consulta por CLI.
+  - Confirmado: paso 2 hecho (2026-10-11) — `agents/memoria/` (`ingesta.py`, `consulta.py`, `embeddings.py`, `chunking.py`, `config.py`) corrido en vivo. La ingesta troceó 118 fragmentos en 6 colecciones (backlog, decisiones, bugs, planes, guia, snapshot) y los insertó con sus embeddings; la consulta (`python -m memoria.consulta "pregunta"`) devolvió fragmentos relevantes con score de similitud en segundos.
+  - Confirmado: la primera corrida de ingesta chocó con el límite free tier de la API de embeddings (429, "Quota exceeded... limit: 100") al pedir un embedding por fragmento (una llamada HTTP por texto). Se corrigió agrupando los fragmentos en lotes de 20 por llamada (`litellm.embedding` acepta `input` como lista) más reintento con backoff de 45s ante un 429; la corrida completa solo necesitó un reintento.
+  - Confirmado: dependencia nueva `psycopg[binary]` agregada a `agents/requirements.txt` (regenerado con `pip freeze`, antes estaba en UTF-16 por un `pip freeze` previo desde PowerShell; ahora en UTF-8/ASCII, legible por `pip install -r`).
+  - Pendiente (fuera de esta iteración, explícitamente no decidido todavía): dar el paso siguiente y conectar esto como backend real de `MemoriaPort` (reemplazar `MockMemoriaAdapter`) — eso requiere antes revisar ADR-0007 sobre qué fragmentos son seguros de reenviar al proveedor del modelo.
   - Confirmado: motor Postgres + `pgvector` en vez de Supabase — el stack self-hosted de Supabase son 8-11 servicios y ≥4 GB RAM solo para tener algo que una extensión resuelve en cualquier Postgres.
   - Confirmado: índice HNSW (mejor relación velocidad/recall que IVFFlat, sin paso de entrenamiento; adecuado para el volumen pequeño de este lab) — README de pgvector.
   - Confirmado: embeddings con `gemini/gemini-embedding-001` vía LiteLLM, reutilizando `GEMINI_API_KEY` de `agents/orquestador/.env`; verificado en el paquete instalado (`agents/.venv/Lib/site-packages/litellm/model_prices_and_context_window_backup.json:26915`), no solo en documentación web. 2048 tokens máx. de entrada, salida truncable a 768 dimensiones.
