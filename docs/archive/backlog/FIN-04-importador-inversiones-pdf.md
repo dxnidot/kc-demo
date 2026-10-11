@@ -1,16 +1,21 @@
-# FIN-04 · Importador de estado de cuenta de inversiones (PDF mensual) y valuación con precios públicos
+# FIN-04 · Importador de estado de cuenta de inversiones y valuación con precios públicos
 
 - Estado: Pendiente
 - Prioridad: Baja
 - Parte del lab: Finanzas
 - Depende de: FIN-01
 - Fecha: 2026-09-30
-- Contexto: Importar un estado de cuenta de inversiones mensual y valuar las posiciones con precios de una fuente pública.
+- Cerrado: —
+- Contexto: Importar un estado de cuenta de inversiones y valuar las posiciones con precios de una fuente pública. Es el destino de cualquier archivo adjuntado en el Chat de Finanzas (`AG-10`) que **sí** tenga ticker — sin ticker, va a `FIN-01` (movimientos) en su lugar. La cuenta destino (MX o USA) se detecta por la moneda/formato del ticker en el documento.
 - Criterio de aceptación:
-  - Un PDF de ejemplo genera las posiciones y movimientos esperados.
+  - Un documento de ejemplo (PDF, CSV o XLSX con texto extraíble) con al menos un ticker genera las posiciones y movimientos esperados en la cuenta correcta (MX o USA).
   - Los precios se obtienen de una fuente pública.
-  - Los PDF viven en `agents/data/` y `git check-ignore` confirma que están ignorados.
-- Archivos relevantes: `agents/`, `agents/data/`
+  - El documento original nunca se guarda en el repo; vive solo en la BD de `kc-finanzas` o en `agents/data/` (ambos ignorados por Git).
+- Archivos relevantes:
+  - services/kc-finanzas/
+  - agents/orquestador/ (tool de `AG-10`)
 - Notas:
+  - Confirmado: la clasificación por ticker funciona sobre el texto extraído del documento, sin importar el formato original (PDF, CSV, XLSX).
   - Inferido: no hay API pública para clientes; nunca usar credenciales de la cuenta de inversión en scripts.
+  - Pendiente: si el documento es una imagen/foto (no PDF/CSV/XLSX con texto extraíble), se necesita OCR — pieza aparte, no incluida en esta historia ni en `AG-10` todavía.
   - Publica `CargoRegistrado` o `MovimientoInversionRegistrado`, según el caso ([ADR-0003](../decisions/0003-arquitectura-por-eventos.md)).

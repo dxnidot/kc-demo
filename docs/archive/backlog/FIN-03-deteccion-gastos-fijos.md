@@ -1,19 +1,22 @@
-# FIN-03 · Detección de gastos fijos y proyección calculada en código (D.3)
+# FIN-03 · Detección de gastos fijos y semifijos (MSI), proyección calculada en código (D.3)
 
 - Estado: Pendiente
 - Prioridad: Media
 - Parte del lab: Finanzas
 - Depende de: FIN-01
 - Fecha: 2026-09-30
-- Contexto: El análisis financiero identifica periódicos y gastos recurrentes para proyectar el flujo del mes. Debe hacerlo en código y no depender de fórmulas ocultas en la UI.
+- Cerrado: —
+- Contexto: El análisis financiero identifica dos tipos de recurrencia entre los movimientos importados por `FIN-01` para proyectar el flujo del mes, en código y no con fórmulas ocultas en la UI:
+  - **Gasto fijo:** mismo monto y concepto, se repite indefinidamente mes a mes.
+  - **Gasto semifijo (MSI):** mismo monto y concepto, se repite un número fijo de meses consecutivos y luego se detiene (patrón de "meses sin intereses").
 - Criterio de aceptación:
-  - `grep -R "gasto fijo\|proyeccion\|recurrencia\|monto mensual" .` encuentra el módulo de detección y cálculo.
-  - Un conjunto sintético de movimientos genera una proyección mensual verificable con reglas explícitas.
-  - La app marca el gasto fijo y la varianza frente a la línea base sin ambigüedad.
+  - `grep -R "gasto fijo\|gasto semifijo\|msi\|proyeccion\|recurrencia" services/kc-finanzas` encuentra el módulo de detección y cálculo.
+  - Un conjunto sintético de movimientos genera una proyección mensual verificable con reglas explícitas, distinguiendo gasto fijo de gasto semifijo.
+  - La app marca cada gasto fijo/semifijo y la varianza frente a la línea base sin ambigüedad.
 - Archivos relevantes:
-  - agents/
-  - agents-ui/
+  - services/kc-finanzas/
 - Notas:
-  - Confirmado: el cálculo debe pensarse para datos sintéticos.
+  - Confirmado: el cálculo debe probarse con datos sintéticos, nunca reales.
   - Inferido: la lógica del cálculo necesita reglas definidas y testeables.
-  - Pendiente: definir qué considera un gasto fijo para el caso del lab antes de la versión final.
+  - Pendiente: definir el umbral exacto de MSI (ej. "≥3 cargos iguales consecutivos sin continuar después" es solo un punto de partida, no una decisión tomada).
+  - Pendiente: una vez definido el umbral, documentarlo también en `.github/skills/finanzas-dominio/SKILL.md` (hoy no cubre gastos semifijos/MSI).

@@ -3,20 +3,21 @@
 - Estado: Pendiente
 - Prioridad: Media
 - Parte del lab: Finanzas
-- Depende de: UI-04
+- Depende de: FIN-10
 - Fecha: 2026-09-30
-- Contexto: Importar localmente ingresos y transacciones para que Lara calcule resúmenes sin enviar los movimientos originales al LLM.
+- Cerrado: —
+- Contexto: Importar movimientos (gastos e ingresos) para que Lara calcule resúmenes sin enviar las filas originales al LLM. Es el destino de cualquier archivo adjuntado en el Chat de Finanzas (`AG-10`) que **no** tenga ticker — si lo tiene, va a `FIN-04` (portafolio) en su lugar.
 - Criterio de aceptación:
-  - `find . -type f | grep -E "csv|xlsx"` devuelve la estructura del importador o de los datos de prueba del laboratorio.
-  - Un CSV o XLSX de prueba se importa sin error y genera agregados; los archivos y movimientos locales se guardan bajo `agents/data/`, ignorado por Git.
+  - `services/kc-finanzas` expone un endpoint de importación que acepta CSV/XLSX.
+  - Un CSV o XLSX de prueba se importa sin error y genera movimientos y agregados; los archivos originales nunca se guardan en el repo (solo en la BD de `kc-finanzas` o en `agents/data/`, ambos ignorados por Git).
   - El LLM solo recibe agregados y resultados calculados, nunca sueldo ni transacciones sin procesar.
   - La app marca filas inválidas y evita aceptar datos sospechosos sin una validación explícita.
 - Archivos relevantes:
-  - agents/data/
-  - agents/
-  - agents-ui/
+  - services/kc-finanzas/
+  - agents/orquestador/ (tool de `AG-10` que llama a este importador)
 - Notas:
-  - Confirmado: el importador debe sostener datos sintéticos y no reales.
+  - Confirmado: el importador debe probarse con datos sintéticos, nunca reales (repo público).
   - Inferido: la validación del esquema es esencial para evitar corrupción de la data.
   - Pendiente: establecer el formato exacto de la hoja y los campos mínimos del modelo de finanzas.
+  - Pendiente: si el archivo adjunto es una imagen/foto (no PDF/CSV/XLSX con texto extraíble), se necesita OCR — pieza aparte, no incluida en esta historia ni en `AG-10` todavía.
   - Publica `CargoRegistrado` en lugar de escribir directamente en la proyección ([ADR-0003](../decisions/0003-arquitectura-por-eventos.md)).

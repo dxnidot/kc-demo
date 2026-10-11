@@ -1,0 +1,24 @@
+# AG-10 · Tool del agente de Finanzas: clasificar y enrutar cualquier archivo adjunto
+
+- Estado: Pendiente
+- Prioridad: Media
+- Parte del lab: iniciativa nueva sobre el agente de Finanzas (FIN-14)
+- Depende de: FIN-01, FIN-03, FIN-04
+- Fecha: 2026-10-11
+- Contexto: En el "Chat de Finanzas" (nueva pantalla de `UI-12`) se puede adjuntar cualquier archivo. El agente de Finanzas (`FIN-14`, ya existe) necesita una tool que lo clasifique y lo enrute, sin importar su formato original (PDF, CSV, XLSX):
+  - **Si el contenido tiene un ticker** → es un estado de inversiones → va a `FIN-04` (se actualiza el portafolio de la cuenta MX o USA correspondiente, según moneda/formato del ticker).
+  - **Si no tiene ticker** → es un estado de cuenta de movimientos → va a `FIN-01` (se guardan los movimientos) → `FIN-03` corre la detección de gastos fijos y semifijos (MSI).
+  - La clasificación y el parseo ocurren en código (`services/kc-finanzas`), nunca en el LLM: el agente solo recibe de vuelta un resumen agregado (cuántos movimientos, cuántos gastos fijos/semifijos detectados, o el delta del portafolio actualizado), nunca el documento crudo ni línea por línea sin agregar — por ADR-0007 y la skill `finanzas-dominio`.
+- Criterio de aceptación:
+  - El agente de Finanzas tiene una tool (`clasificar_documento_financiero` o nombre equivalente) que recibe el archivo adjunto y devuelve a qué destino fue (inversiones MX/USA, o gastos) y un resumen agregado.
+  - Un documento de prueba con ticker termina en el portafolio correcto; uno sin ticker termina en movimientos, con sus gastos fijos/semifijos detectados.
+  - El contenido crudo del documento nunca aparece en los logs ni en el historial de mensajes enviado al proveedor del modelo — solo el resumen agregado.
+  - Las pantallas de `UI-12` ("Gastos", "Gastos fijos", "Inversiones · MX/USA") muestran los datos actualizados la siguiente vez que se visitan, sin acción manual adicional.
+- Archivos relevantes:
+  - agents/orquestador/ (definición de la tool, agente de finanzas)
+  - services/kc-finanzas/ (clasificación, parseo, persistencia)
+- Notas:
+  - Confirmado: la regla de clasificación es "tiene ticker → inversiones; no tiene ticker → gastos", no el formato del archivo.
+  - Pendiente: si el archivo adjunto es una imagen/foto (no PDF/CSV/XLSX con texto extraíble), se necesita OCR — pieza aparte, deliberadamente fuera de alcance de esta historia.
+  - Pendiente: el umbral exacto de MSI se define en `FIN-03`, no aquí.
+  - Pendiente: decidir si la tool vive en el agente de Finanzas (`FIN-14`) directamente o se expone como endpoint HTTP intermedio que la tool solo invoca.
