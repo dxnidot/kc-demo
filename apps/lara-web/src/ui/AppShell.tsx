@@ -1,43 +1,34 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownRight,
-  ArrowLeft,
   ArrowUpLeft,
   Calendar,
   CreditCard,
   Database,
   LayoutDashboard,
   LayoutGrid,
-  LogOut,
-  Menu,
   MessageCircle,
   Network,
-  PanelLeft,
-  PanelLeftOpen,
-  Plus,
-  SunMoon,
   TextAlignStart,
   TrendingUp,
   Users,
-  Wallet,
   Waypoints,
   Wrench,
-  X,
 } from "lucide-react";
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import type { Usuario } from "../domain/Usuario";
 import { IniciarSesion } from "../application/use-cases/IniciarSesion";
 import { adaptadores, usarMocks } from "../infrastructure/composition";
+import { useApariencia } from "./apariencia/useApariencia";
 import { DialogoApariencia } from "./apariencia/DialogoApariencia";
 import { AvisoCarga, Esqueleto, EsqueletoTabla } from "./components/Esqueleto";
 import { AccesoDenegado } from "./components/AccesoDenegado";
-import { claseFoco, claseFocoInterno } from "./components/foco";
-import { IconButton } from "./components/IconButton";
-import { IndicadorMock } from "./components/IndicadorMock";
-import { LaraLogo } from "./components/LaraLogo";
+import { AppSidebar, type EntradaNavSidebar, type GrupoNavSidebar } from "./components/AppSidebar";
 import { PageLayout } from "./components/PageLayout";
-import { idBarraLateral, Sidebar } from "./components/Sidebar";
-import { SidebarGroup, SidebarItem } from "./components/SidebarItem";
+import { LaraLogo } from "./components/LaraLogo";
+import { IndicadorMock } from "./components/IndicadorMock";
+import { SidebarProvider, SidebarTrigger, useSidebar } from "../components/ui/sidebar";
+import { TooltipProvider } from "../components/ui/tooltip";
 import { ChatPage } from "./ChatPage";
 import { FinanzasChatPage } from "./FinanzasChatPage";
 import { FinanzasGastosPage } from "./FinanzasGastosPage";
@@ -48,9 +39,7 @@ import { FinanzasTarjetasPage } from "./FinanzasTarjetasPage";
 import { LoginPage } from "./LoginPage";
 import { ChatSessionsProvider, useChatSessions } from "./useChatSessions";
 import { useHasRole } from "./useHasRole";
-import { focoAplicable, type DestinoFocoBarra } from "./focoBarra";
 import { tituloDeRuta, useTituloDocumento } from "./tituloDocumento";
-import { useTrampaFoco } from "./useTrampaFoco";
 import { useVistaEstrecha } from "./useVistaEstrecha";
 
 const AgentesPage = lazy(() => import("./AgentesPage").then((m) => ({ default: m.AgentesPage })));
@@ -97,6 +86,9 @@ const iconoNav = "size-4.5 shrink-0";
  * @modified Daniel Tovar 2026-10-11 UI-12: FINANZAS es su propia sección del sidebar (mismo patrón que LABORATORIO),
  * ya no un item plano de PERSONAL. Gastos fijos se muda ahí, Inversiones es un desplegable con MX/USA y el chat
  * de Finanzas pasa de panel deslizante a ruta propia.
+ * @modified Daniel Tovar 2026-11-03 Sidebar de shadcn/ui (grupos Conversación/Finanzas/Agente/Pruebas, siempre
+ * visibles, colapsable a iconos). El drawer móvil, la trampa de foco y el riel manual los resuelve ahora el
+ * propio componente Sidebar (Sheet de Radix); se borró esa lógica propia.
  */
 export function AppShell() {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
@@ -149,41 +141,18 @@ interface AppShellLayoutProps {
   usuario: Usuario;
 }
 
-function SeccionNav({ titulo, children }: { titulo: string; children: ReactNode }) {
-  const idTitulo = `nav-${titulo.replace(/\W+/g, "-").toLowerCase()}`;
+/** Barra superior de móvil (bajo 980px): marca + botón que abre el drawer de navegación. */
+function BarraSuperiorMovil() {
+  const { openMobile } = useSidebar();
   return (
-    <div aria-labelledby={idTitulo} className="flex flex-col gap-0.5" role="group">
-      <h2
-        className="m-0 px-3 pb-1.5 font-mono text-label font-normal tracking-label text-faint"
-        id={idTitulo}
-      >
-        {titulo}
-      </h2>
-      {children}
-    </div>
-  );
-}
-
-interface EntradaNav {
-  activo?: boolean;
-  etiqueta: string;
-  icono: ReactNode;
-  ruta: string;
-}
-
-function RielItem({ activo, etiqueta, icono, to }: { activo: boolean; etiqueta: string; icono: ReactNode; to: string }) {
-  return (
-    <Link
-      aria-current={activo ? "page" : undefined}
-      aria-label={etiqueta}
-      className={`flex size-11 shrink-0 items-center justify-center rounded-button transition-colors shell:size-9.5 ${claseFocoInterno} ${
-        activo ? "bg-surface-active text-text" : "text-text-2 hover:bg-surface-hover hover:text-text"
-      }`}
-      title={etiqueta}
-      to={to}
-    >
-      {icono}
-    </Link>
+    <header className="flex h-14 items-center gap-3 border-b border-border bg-sidebar px-2">
+      <SidebarTrigger aria-expanded={openMobile} aria-label="Abrir navegación" />
+      <div className="flex items-center gap-2.5">
+        <LaraLogo />
+        <span className="text-brand font-semibold">Lara</span>
+        <IndicadorMock activo={usarMocks} />
+      </div>
+    </header>
   );
 }
 
@@ -213,22 +182,69 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
     sessions,
     setActiveSessionId,
   } = useChatSessions();
+  // shortcut: instancia propia de useApariencia para el toggle rápido del sidebar, separada de la que
+  // usa DialogoApariencia (cada una con su propio estado de React); si el diálogo está abierto a la vez
+  // que se usa el toggle rápido, el diálogo no refleja el cambio hasta que se remonta. Si eso molesta,
+  // sube el estado a un contexto compartido.
+  const { tema, cambiarTema } = useApariencia();
   const [error, setError] = useState<string | null>(null);
-  const [barraVisible, setBarraVisible] = useState(true);
-  const [rutaDrawer, setRutaDrawer] = useState<string | null>(null);
   const [aparienciaAbierta, setAparienciaAbierta] = useState(false);
-  const [menuUsuarioAbierto, setMenuUsuarioAbierto] = useState(false);
   useTituloDocumento(tituloDeRuta(pathname));
   const puedeVerAgentes = useHasRole(usuario, ["ver_agentes", "admin"]);
   const puedeVerIdentidad = useHasRole(usuario, ["ver_identidad", "admin"]);
   const puedeVerFinanzas = useHasRole(usuario, ["ver-finanzas", "admin"]);
 
-  // FINANZAS reemplaza todo el panel lateral (mismo patrón que LABORATORIO), no un item plano de PERSONAL.
-  const enFinanzas =
-    pathname === "/finanzas" || pathname.startsWith("/finanzas/") || pathname === "/gastos-fijos";
-  const enInversiones = pathname.startsWith("/finanzas/inversiones");
+  const contenidoPrincipal = useRef<HTMLElement | null>(null);
+  const botonUsuario = useRef<HTMLButtonElement | null>(null);
+  const aparienciaEstabaAbierta = useRef(false);
 
-  const itemsFinanzas: EntradaNav[] = puedeVerFinanzas
+  useEffect(() => {
+    // El foco vuelve al botón de usuario (su trigger) al cerrar el diálogo, que vive fuera del menú
+    // ya desmontado que lo abrió.
+    if (aparienciaEstabaAbierta.current && !aparienciaAbierta) {
+      botonUsuario.current?.focus();
+    }
+    aparienciaEstabaAbierta.current = aparienciaAbierta;
+  }, [aparienciaAbierta]);
+
+  function iniciarChatNuevo() {
+    setError(null);
+    setActiveSessionId(null);
+    navigate("/chat");
+  }
+
+  async function cerrarSesion() {
+    try {
+      await adaptadores.auth.logout();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "No se pudo cerrar sesión.");
+    }
+  }
+
+  const protegido = (permitido: boolean, elemento: ReactNode) =>
+    permitido ? elemento : <AccesoDenegado />;
+
+  // Grupo "Pruebas" (Identidad): oculto por defecto, se activa con VITE_MOSTRAR_PRUEBAS=true en .env.local.
+  const mostrarPruebas = import.meta.env.VITE_MOSTRAR_PRUEBAS === "true";
+
+  const grupoConversacion: GrupoNavSidebar = {
+    titulo: "Conversación",
+    items: [
+      {
+        etiqueta: "Chat",
+        icono: <MessageCircle aria-hidden="true" className={iconoNav} />,
+        onClick: iniciarChatNuevo,
+        ruta: "/chat",
+      },
+      {
+        etiqueta: "Estado del lab",
+        icono: <LayoutDashboard aria-hidden="true" className={iconoNav} />,
+        ruta: "/estado",
+      },
+    ],
+  };
+
+  const itemsFinanzas: EntradaNavSidebar[] = puedeVerFinanzas
     ? [
         {
           etiqueta: "Resumen",
@@ -261,40 +277,44 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
           ruta: "/finanzas/tarjetas",
         },
         {
-          activo: enInversiones,
           etiqueta: "Inversiones",
+          hijos: [
+            { etiqueta: "MX", ruta: "/finanzas/inversiones/mx" },
+            { etiqueta: "USA", ruta: "/finanzas/inversiones/usa" },
+          ],
           icono: <TrendingUp aria-hidden="true" className={iconoNav} />,
-          ruta: "/finanzas/inversiones/mx",
+          ruta: "/finanzas/inversiones",
         },
       ]
     : [];
 
-  const itemsLaboratorio: EntradaNav[] = [
-    ...(puedeVerAgentes
-      ? [
-          {
-            etiqueta: "Agentes",
-            icono: <Network aria-hidden="true" className={iconoNav} />,
-            ruta: "/agentes",
-          },
-          {
-            etiqueta: "Base de datos",
-            icono: <Database aria-hidden="true" className={iconoNav} />,
-            ruta: "/base-de-datos",
-          },
-          {
-            etiqueta: "Memoria vectorizada",
-            icono: <Waypoints aria-hidden="true" className={iconoNav} />,
-            ruta: "/memoria",
-          },
-          {
-            etiqueta: "Herramientas MCP",
-            icono: <Wrench aria-hidden="true" className={iconoNav} />,
-            ruta: "/herramientas",
-          },
-        ]
-      : []),
-    ...(puedeVerIdentidad
+  const itemsAgente: EntradaNavSidebar[] = puedeVerAgentes
+    ? [
+        {
+          etiqueta: "Agentes",
+          icono: <Network aria-hidden="true" className={iconoNav} />,
+          ruta: "/agentes",
+        },
+        {
+          etiqueta: "Base de datos",
+          icono: <Database aria-hidden="true" className={iconoNav} />,
+          ruta: "/base-de-datos",
+        },
+        {
+          etiqueta: "Memoria vectorizada",
+          icono: <Waypoints aria-hidden="true" className={iconoNav} />,
+          ruta: "/memoria",
+        },
+        {
+          etiqueta: "Herramientas MCP",
+          icono: <Wrench aria-hidden="true" className={iconoNav} />,
+          ruta: "/herramientas",
+        },
+      ]
+    : [];
+
+  const itemsPruebas: EntradaNavSidebar[] =
+    puedeVerIdentidad && mostrarPruebas
       ? [
           {
             etiqueta: "Menú por rol",
@@ -307,548 +327,172 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
             ruta: "/usuarios",
           },
         ]
-      : []),
+      : [];
+
+  const grupos: GrupoNavSidebar[] = [
+    grupoConversacion,
+    ...(itemsFinanzas.length > 0 ? [{ titulo: "Finanzas", items: itemsFinanzas }] : []),
+    ...(itemsAgente.length > 0 ? [{ titulo: "Agente", items: itemsAgente }] : []),
+    ...(itemsPruebas.length > 0 ? [{ titulo: "Pruebas", items: itemsPruebas }] : []),
   ];
 
-  const enLaboratorio = itemsLaboratorio.some((item) => pathname === item.ruta);
-
-  const panelNav = useRef<HTMLElement | null>(null);
-  const botonMenu = useRef<HTMLButtonElement | null>(null);
-  const botonContraer = useRef<HTMLButtonElement | null>(null);
-  const botonMostrar = useRef<HTMLButtonElement | null>(null);
-  const botonApariencia = useRef<HTMLButtonElement | null>(null);
-  const botonUsuario = useRef<HTMLButtonElement | null>(null);
-  const contenidoPrincipal = useRef<HTMLElement | null>(null);
-  const aparienciaEstabaAbierta = useRef(false);
-  const navEstabaAbierta = useRef(false);
-  const focoPendiente = useRef<DestinoFocoBarra | null>(null);
-
-  // El drawer queda abierto solo para la ruta en la que se abrió: al navegar se cierra sin efectos.
-  const navAbierta = rutaDrawer === pathname;
-  const drawerActivo = estrecha && navAbierta;
-  const cerrarNav = useCallback(() => setRutaDrawer(null), []);
-  useTrampaFoco(drawerActivo, cerrarNav, panelNav);
-
-  useEffect(() => {
-    if (!estrecha) {
-      setRutaDrawer(null);
-    }
-  }, [estrecha]);
-
-  useEffect(() => {
-    if (drawerActivo) {
-      panelNav.current?.focus();
-    } else if (navEstabaAbierta.current) {
-      botonMenu.current?.focus();
-    }
-    navEstabaAbierta.current = drawerActivo;
-  }, [drawerActivo]);
-
-  useEffect(() => {
-    // El botón "Configuración" vive dentro del menú de usuario, que se cierra al abrir el diálogo:
-    // el foco vuelve al botón de usuario (su trigger), no al ítem del menú ya desmontado.
-    if (aparienciaEstabaAbierta.current && !aparienciaAbierta) {
-      botonUsuario.current?.focus();
-    }
-    aparienciaEstabaAbierta.current = aparienciaAbierta;
-  }, [aparienciaAbierta]);
-
-  useEffect(() => {
-    const destino = focoAplicable(focoPendiente.current, barraVisible);
-    if (destino === null) {
-      return;
-    }
-    focoPendiente.current = null;
-    (destino === "contraer" ? botonContraer : botonMostrar).current?.focus();
-  }, [barraVisible]);
-
-  function alternarBarra(visible: boolean) {
-    focoPendiente.current = visible ? "contraer" : "mostrar";
-    setBarraVisible(visible);
-  }
-
-  useEffect(() => {
-    if (!menuUsuarioAbierto) {
-      return;
-    }
-    function alPulsarTecla(evento: KeyboardEvent) {
-      if (evento.key === "Escape") {
-        setMenuUsuarioAbierto(false);
-        botonUsuario.current?.focus();
-      }
-    }
-    document.addEventListener("keydown", alPulsarTecla);
-    return () => document.removeEventListener("keydown", alPulsarTecla);
-  }, [menuUsuarioAbierto]);
-
-  function irALaboratorio() {
-    setMenuUsuarioAbierto(false);
-    setRutaDrawer(null);
-    if (itemsLaboratorio[0]) {
-      navigate(itemsLaboratorio[0].ruta);
-    }
-  }
-
-  function irAFinanzas() {
-    setMenuUsuarioAbierto(false);
-    setRutaDrawer(null);
-    if (itemsFinanzas[0]) {
-      navigate(itemsFinanzas[0].ruta);
-    }
-  }
-
-  function iniciarChatNuevo() {
-    setError(null);
-    setActiveSessionId(null);
-    setRutaDrawer(null);
-    navigate("/chat");
-  }
-
-  async function cerrarSesion() {
-    try {
-      await adaptadores.auth.logout();
-    } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "No se pudo cerrar sesión.");
-    }
-  }
-
-  const protegido = (permitido: boolean, elemento: ReactNode) =>
-    permitido ? elemento : <AccesoDenegado />;
-
-  const enRuta = (ruta: string) => pathname === ruta;
-  const barraCompleta = estrecha || barraVisible;
-
   const barraSuperior = estrecha && (
-    <header className="flex h-14 items-center gap-3 border-b border-border bg-sidebar px-2">
-      <IconButton
-        aria-controls={idBarraLateral}
-        aria-expanded={drawerActivo}
-        aria-label="Abrir navegación"
-        onClick={() => setRutaDrawer(pathname)}
-        ref={botonMenu}
-        tono="atenuado"
-      >
-        <Menu aria-hidden="true" className="size-5" />
-      </IconButton>
-      <div className="flex items-center gap-2.5">
-        <LaraLogo />
-        <span className="text-brand font-semibold">Lara</span>
-                <IndicadorMock activo={usarMocks} />
-      </div>
-    </header>
+    <BarraSuperiorMovil />
   );
 
   return (
-    <PageLayout
-      cabecera={barraSuperior || undefined}
-      className="h-dvh bg-bg font-sans text-text"
-      desplazable={false}
-      libre
-    >
-      <a
-        className="sr-only z-50 rounded-button bg-accent px-4 py-2 text-sm font-medium text-accent-ink focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:inline-flex focus:min-h-11 focus:items-center"
-        href={`#${idContenidoPrincipal}`}
-        onClick={(event) => {
-          event.preventDefault();
-          contenidoPrincipal.current?.focus();
-        }}
+    <TooltipProvider delayDuration={300}>
+    <SidebarProvider>
+      <PageLayout
+        cabecera={barraSuperior || undefined}
+        className="h-dvh bg-bg font-sans text-text"
+        desplazable={false}
+        libre
       >
-        Saltar al contenido principal
-      </a>
-      <div className="flex min-h-0 min-w-0 flex-1">
-        {barraCompleta ? (
-          <Sidebar abierto={drawerActivo} drawer={estrecha} onCerrar={cerrarNav} panelRef={panelNav}>
-            <div className="flex shrink-0 items-center justify-between px-1">
-              <div className="flex items-center gap-2.5">
-                <LaraLogo />
-                <span className="text-brand font-semibold">Lara</span>
-                <IndicadorMock activo={usarMocks} />
-              </div>
-              {estrecha ? (
-                <IconButton
-                  aria-label="Cerrar navegación"
-                  onClick={cerrarNav}
-                  tamano="compacto"
-                  tono="atenuado"
-                >
-                  <X aria-hidden="true" className="size-4.5" />
-                </IconButton>
-              ) : (
-                <IconButton
-                  aria-controls={idBarraLateral}
-                  aria-expanded={true}
-                  aria-label="Contraer barra lateral"
-                  onClick={() => alternarBarra(false)}
-                  ref={botonContraer}
-                  tamano="compacto"
-                  tono="atenuado"
-                >
-                  <PanelLeft aria-hidden="true" className="size-4.5" />
-                </IconButton>
-              )}
-            </div>
-
-            {enLaboratorio || enFinanzas ? (
-              <button
-                className={`flex min-h-11 w-full shrink-0 items-center gap-2.5 rounded-button px-3.5 text-sm font-semibold text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFoco}`}
-                onClick={() => navigate("/chat")}
-                type="button"
-              >
-                <ArrowLeft aria-hidden="true" className={iconoNav} />
-                Volver al chat
-              </button>
-            ) : (
-              <button
-                className={`flex min-h-11 w-full shrink-0 items-center gap-2.5 rounded-button bg-accent px-3.5 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-hover ${claseFoco}`}
-                onClick={iniciarChatNuevo}
-                type="button"
-              >
-                <Plus aria-hidden="true" className={iconoNav} />
-                Nuevo chat
-              </button>
-            )}
-
-            {enLaboratorio ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto">
-                <SeccionNav titulo="LABORATORIO">
-                  {itemsLaboratorio.map((item) => (
-                    <SidebarItem
-                      active={enRuta(item.ruta)}
-                      icono={item.icono}
-                      key={item.ruta}
-                      to={item.ruta}
-                    >
-                      {item.etiqueta}
-                    </SidebarItem>
-                  ))}
-                </SeccionNav>
-              </div>
-            ) : enFinanzas ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto">
-                <SeccionNav titulo="FINANZAS">
-                  {itemsFinanzas.map((item) =>
-                    item.etiqueta === "Inversiones" ? (
-                      <SidebarGroup
-                        abiertoPorDefecto={enInversiones}
-                        etiqueta="Inversiones"
-                        hijos={[
-                          {
-                            activo: enRuta("/finanzas/inversiones/mx"),
-                            etiqueta: "MX",
-                            to: "/finanzas/inversiones/mx",
-                          },
-                          {
-                            activo: enRuta("/finanzas/inversiones/usa"),
-                            etiqueta: "USA",
-                            to: "/finanzas/inversiones/usa",
-                          },
-                        ]}
-                        icono={item.icono}
-                        key="inversiones"
-                      />
-                    ) : (
-                      <SidebarItem
-                        active={enRuta(item.ruta)}
-                        icono={item.icono}
-                        key={item.ruta}
-                        to={item.ruta}
-                      >
-                        {item.etiqueta}
-                      </SidebarItem>
-                    ),
-                  )}
-                </SeccionNav>
-              </div>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto">
-                <nav aria-label="Principal" className="flex shrink-0 flex-col gap-3.5">
-                  <SidebarItem
-                    active={enRuta("/estado")}
-                    icono={<LayoutDashboard aria-hidden="true" className={iconoNav} />}
-                    to="/estado"
-                  >
-                    Estado del lab
-                  </SidebarItem>
-                </nav>
-
-                <div className="flex shrink-0 flex-col gap-0.5">
-                  <div className="flex items-center justify-between px-3 pb-1.5">
-                    <h2 className="m-0 font-mono text-label font-normal tracking-label text-faint">
-                      RECIENTES
-                    </h2>
-                    {isLoadingHistory && <AvisoCarga texto="Cargando conversaciones…" />}
-                  </div>
-                  <nav aria-label="Historial de chats" className="flex flex-col gap-0.5">
-                    {sessions.map((session) => (
-                      <SidebarItem
-                        active={pathname === "/chat" && session.id === activeSessionId}
-                        key={session.id}
-                        onClick={() => selectSession(session.id)}
-                        reciente
-                        to="/chat"
-                      >
-                        {session.titulo}
-                      </SidebarItem>
-                    ))}
-                    {!isLoadingHistory && sessions.length === 0 && (
-                      <p className="m-0 px-3 py-2 text-xs text-faint">Aún no hay conversaciones.</p>
-                    )}
-                    {historyError && (
-                      <div className="flex flex-col items-start gap-1 px-3 py-2">
-                        <p className="m-0 text-xs text-danger" role="alert">{historyError}</p>
-                        <button
-                          className="inline-flex min-h-11 items-center text-xs text-accent underline hover:text-accent-hover shell:min-h-0"
-                          onClick={() => void refreshSessions().catch(() => undefined)}
-                          type="button"
-                        >
-                          Reintentar
-                        </button>
-                      </div>
-                    )}
-                    {isLoadingHistory && sessions.length === 0 && (
-                      <div aria-hidden="true" className="flex flex-col gap-2 px-3 py-2">
-                        <Esqueleto className="h-3.5 w-4/5" />
-                        <Esqueleto className="h-3.5 w-3/5" />
-                      </div>
-                    )}
-                  </nav>
-                </div>
-              </div>
-            )}
-
-            <footer className="relative flex shrink-0 items-center gap-1 border-t border-border px-2 pb-1 pt-3">
-              <button
-                aria-expanded={menuUsuarioAbierto}
-                aria-haspopup="menu"
-                className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-button py-1 pl-1 pr-2 text-left transition-colors hover:bg-surface-hover ${claseFocoInterno}`}
-                onClick={() => setMenuUsuarioAbierto((abierto) => !abierto)}
-                ref={botonUsuario}
-                type="button"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex size-8.5 shrink-0 items-center justify-center rounded-full bg-surface-active text-sm font-semibold text-accent"
-                >
-                  {usuario.username.slice(0, 1).toUpperCase()}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm">{usuario.username}</span>
-                  <span className="truncate text-xs text-muted">
-                    {`${usuario.kcMenuRoles.length > 0 ? usuario.kcMenuRoles.join(", ") : "sin rol"} · LOCAL`}
-                  </span>
-                </div>
-              </button>
-              <IconButton
-                aria-label="Cerrar sesión"
-                onClick={() => void cerrarSesion()}
-                tamano="compacto"
-                tono="atenuado"
-              >
-                <LogOut aria-hidden="true" className="size-4.5" />
-              </IconButton>
-
-              {menuUsuarioAbierto && (
-                <>
-                  <div
-                    aria-hidden="true"
-                    className="fixed inset-0 z-30"
-                    onClick={() => setMenuUsuarioAbierto(false)}
-                  />
-                  <div
-                    aria-label="Usuario"
-                    className="absolute bottom-full left-2 z-40 mb-2 w-52 rounded-card border border-border bg-surface p-1"
-                    role="menu"
-                  >
-                    <button
-                      className={`flex min-h-11 w-full items-center gap-2.5 rounded-button px-3 text-left text-sm text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFocoInterno}`}
-                      onClick={() => {
-                        setMenuUsuarioAbierto(false);
-                        setAparienciaAbierta(true);
-                      }}
-                      ref={botonApariencia}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <SunMoon aria-hidden="true" className={iconoNav} />
-                      Configuración
-                    </button>
-                    {itemsFinanzas.length > 0 && (
-                      <button
-                        className={`flex min-h-11 w-full items-center gap-2.5 rounded-button px-3 text-left text-sm text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFocoInterno}`}
-                        onClick={irAFinanzas}
-                        role="menuitem"
-                        type="button"
-                      >
-                        <Wallet aria-hidden="true" className={iconoNav} />
-                        Finanzas
-                      </button>
-                    )}
-                    {itemsLaboratorio.length > 0 && (
-                      <button
-                        className={`flex min-h-11 w-full items-center gap-2.5 rounded-button px-3 text-left text-sm text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFocoInterno}`}
-                        onClick={irALaboratorio}
-                        role="menuitem"
-                        type="button"
-                      >
-                        <Network aria-hidden="true" className={iconoNav} />
-                        Laboratorio
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </footer>
-          </Sidebar>
-        ) : (
-          <div className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-sidebar px-1.5 py-3">
-            <IconButton
-              aria-expanded={false}
-              aria-label="Mostrar barra lateral"
-              onClick={() => alternarBarra(true)}
-              ref={botonMostrar}
-              tamano="compacto"
-              tono="atenuado"
-            >
-              <PanelLeftOpen aria-hidden="true" className="size-4.5" />
-            </IconButton>
-            <div aria-hidden="true" className="my-1 h-px w-6 shrink-0 bg-divider" />
-            {enLaboratorio ? (
-              <nav aria-label="Laboratorio" className="flex flex-col items-center gap-1">
-                <RielItem activo={false} etiqueta="Volver al chat" icono={<ArrowLeft aria-hidden="true" className={iconoNav} />} to="/chat" />
-                {itemsLaboratorio.map((item) => (
-                  <RielItem activo={enRuta(item.ruta)} etiqueta={item.etiqueta} icono={item.icono} key={item.ruta} to={item.ruta} />
-                ))}
-              </nav>
-            ) : enFinanzas ? (
-              <nav aria-label="Finanzas" className="flex flex-col items-center gap-1">
-                <RielItem activo={false} etiqueta="Volver al chat" icono={<ArrowLeft aria-hidden="true" className={iconoNav} />} to="/chat" />
-                {itemsFinanzas.map((item) => (
-                  <RielItem
-                    activo={item.activo ?? enRuta(item.ruta)}
-                    etiqueta={item.etiqueta}
-                    icono={item.icono}
-                    key={item.ruta}
-                    to={item.ruta}
-                  />
-                ))}
-              </nav>
-            ) : (
-              <nav aria-label="Principal" className="flex flex-col items-center gap-1">
-                <RielItem activo={enRuta("/estado")} etiqueta="Estado del lab" icono={<LayoutDashboard aria-hidden="true" className={iconoNav} />} to="/estado" />
-              </nav>
-            )}
-          </div>
-        )}
-
-        <main
-          className="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
-          id={idContenidoPrincipal}
-          ref={contenidoPrincipal}
-          tabIndex={-1}
+        <a
+          className="sr-only z-50 rounded-button bg-accent px-4 py-2 text-sm font-medium text-accent-ink focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:inline-flex focus:min-h-11 focus:items-center"
+          href={`#${idContenidoPrincipal}`}
+          onClick={(event) => {
+            event.preventDefault();
+            contenidoPrincipal.current?.focus();
+          }}
         >
-          {error && (
-            <p className="m-0 shrink-0 border-b border-border bg-surface-active px-4 py-3 text-sm text-danger sm:px-6" role="alert">
-              {error}
-            </p>
-          )}
-          <Suspense fallback={<CargandoVista />}>
-            <Routes>
-              <Route path="/" element={<Navigate replace to="/chat" />} />
-              <Route path="/chat" element={<ChatPage usuario={usuario} />} />
-              <Route path="/estado" element={<EstadoLabPage />} />
-              <Route path="/agentes" element={protegido(puedeVerAgentes, <AgentesPage />)} />
-              <Route
-                path="/base-de-datos"
-                element={protegido(
-                  puedeVerAgentes,
-                  <BaseDeDatosPage baseDatos={adaptadores.baseDatos} usuario={usuario} />,
-                )}
-              />
-              <Route
-                path="/memoria"
-                element={protegido(puedeVerAgentes, <MemoriaPage memoria={adaptadores.memoria} />)}
-              />
-              <Route path="/herramientas" element={protegido(puedeVerAgentes, <HerramientasPage />)} />
-              <Route
-                path="/menu-por-rol"
-                element={protegido(
-                  puedeVerIdentidad,
-                  <MenuPorRolPage menuPorRol={adaptadores.menuPorRol} usuario={usuario} />,
-                )}
-              />
-              <Route
-                path="/usuarios"
-                element={protegido(
-                  puedeVerIdentidad,
-                  <UsuariosRolesPage usuariosRealm={adaptadores.usuariosRealm} />,
-                )}
-              />
-              <Route
-                path="/gastos-fijos"
-                element={protegido(
-                  puedeVerFinanzas,
-                  <GastosFijosPage gastosFijos={adaptadores.gastosFijos} />,
-                )}
-              />
-              <Route
-                path="/finanzas"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
-              />
-              <Route
-                path="/finanzas/resumen"
-                element={protegido(puedeVerFinanzas, <FinanzasResumenPage />)}
-              />
-              <Route
-                path="/finanzas/chat"
-                element={protegido(puedeVerFinanzas, <FinanzasChatPage />)}
-              />
-              <Route
-                path="/finanzas/gastos"
-                element={protegido(puedeVerFinanzas, <FinanzasGastosPage />)}
-              />
-              <Route
-                path="/finanzas/ingresos"
-                element={protegido(puedeVerFinanzas, <FinanzasIngresosPage />)}
-              />
-              <Route
-                path="/finanzas/tarjetas"
-                element={protegido(puedeVerFinanzas, <FinanzasTarjetasPage />)}
-              />
-              <Route
-                path="/finanzas/inversiones"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
-              />
-              <Route
-                path="/finanzas/inversiones/mx"
-                element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="mx" />)}
-              />
-              <Route
-                path="/finanzas/inversiones/usa"
-                element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="usa" />)}
-              />
-              {/* Rutas viejas: Finanzas con pestañas, inversiones por ?mercado= y Pagos como pestaña. */}
-              <Route
-                path="/finanzas/pagos"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/tarjetas" />)}
-              />
-              <Route
-                path="/finanzas/trading-mx"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
-              />
-              <Route
-                path="/finanzas/trading-usa"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/usa" />)}
-              />
-              <Route
-                path="/finanzas/*"
-                element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
-              />
-              <Route path="*" element={<Navigate replace to="/chat" />} />
-            </Routes>
-          </Suspense>
-        </main>
-      </div>
-      {aparienciaAbierta && <DialogoApariencia onCerrar={() => setAparienciaAbierta(false)} />}
-    </PageLayout>
+          Saltar al contenido principal
+        </a>
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <AppSidebar
+            grupos={grupos}
+            onAbrirApariencia={() => setAparienciaAbierta(true)}
+            onCambiarTema={cambiarTema}
+            onCerrarSesion={() => void cerrarSesion()}
+            recientes={{
+              activeSessionId,
+              enRutaChat: pathname === "/chat",
+              historyError,
+              isLoadingHistory,
+              onReintentar: () => void refreshSessions().catch(() => undefined),
+              onSeleccionar: (id) => {
+                selectSession(id);
+                navigate("/chat");
+              },
+              sessions,
+            }}
+            tema={tema}
+            usuario={usuario}
+            usuarioBotonRef={botonUsuario}
+          />
+
+          <main
+            className="flex min-h-0 min-w-0 flex-1 flex-col outline-none"
+            id={idContenidoPrincipal}
+            ref={contenidoPrincipal}
+            tabIndex={-1}
+          >
+            {error && (
+              <p className="m-0 shrink-0 border-b border-border bg-surface-active px-4 py-3 text-sm text-danger sm:px-6" role="alert">
+                {error}
+              </p>
+            )}
+            <Suspense fallback={<CargandoVista />}>
+              <Routes>
+                <Route path="/" element={<Navigate replace to="/chat" />} />
+                <Route path="/chat" element={<ChatPage usuario={usuario} />} />
+                <Route path="/estado" element={<EstadoLabPage />} />
+                <Route path="/agentes" element={protegido(puedeVerAgentes, <AgentesPage />)} />
+                <Route
+                  path="/base-de-datos"
+                  element={protegido(
+                    puedeVerAgentes,
+                    <BaseDeDatosPage baseDatos={adaptadores.baseDatos} usuario={usuario} />,
+                  )}
+                />
+                <Route
+                  path="/memoria"
+                  element={protegido(puedeVerAgentes, <MemoriaPage memoria={adaptadores.memoria} />)}
+                />
+                <Route path="/herramientas" element={protegido(puedeVerAgentes, <HerramientasPage />)} />
+                <Route
+                  path="/menu-por-rol"
+                  element={protegido(
+                    puedeVerIdentidad,
+                    <MenuPorRolPage menuPorRol={adaptadores.menuPorRol} usuario={usuario} />,
+                  )}
+                />
+                <Route
+                  path="/usuarios"
+                  element={protegido(
+                    puedeVerIdentidad,
+                    <UsuariosRolesPage usuariosRealm={adaptadores.usuariosRealm} />,
+                  )}
+                />
+                <Route
+                  path="/gastos-fijos"
+                  element={protegido(
+                    puedeVerFinanzas,
+                    <GastosFijosPage gastosFijos={adaptadores.gastosFijos} />,
+                  )}
+                />
+                <Route
+                  path="/finanzas"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
+                />
+                <Route
+                  path="/finanzas/resumen"
+                  element={protegido(puedeVerFinanzas, <FinanzasResumenPage />)}
+                />
+                <Route
+                  path="/finanzas/chat"
+                  element={protegido(puedeVerFinanzas, <FinanzasChatPage />)}
+                />
+                <Route
+                  path="/finanzas/gastos"
+                  element={protegido(puedeVerFinanzas, <FinanzasGastosPage />)}
+                />
+                <Route
+                  path="/finanzas/ingresos"
+                  element={protegido(puedeVerFinanzas, <FinanzasIngresosPage />)}
+                />
+                <Route
+                  path="/finanzas/tarjetas"
+                  element={protegido(puedeVerFinanzas, <FinanzasTarjetasPage />)}
+                />
+                <Route
+                  path="/finanzas/inversiones"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
+                />
+                <Route
+                  path="/finanzas/inversiones/mx"
+                  element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="mx" />)}
+                />
+                <Route
+                  path="/finanzas/inversiones/usa"
+                  element={protegido(puedeVerFinanzas, <FinanzasInversionesPage cuenta="usa" />)}
+                />
+                {/* Rutas viejas: Finanzas con pestañas, inversiones por ?mercado= y Pagos como pestaña. */}
+                <Route
+                  path="/finanzas/pagos"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/tarjetas" />)}
+                />
+                <Route
+                  path="/finanzas/trading-mx"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/mx" />)}
+                />
+                <Route
+                  path="/finanzas/trading-usa"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/inversiones/usa" />)}
+                />
+                <Route
+                  path="/finanzas/*"
+                  element={protegido(puedeVerFinanzas, <Navigate replace to="/finanzas/resumen" />)}
+                />
+                <Route path="*" element={<Navigate replace to="/chat" />} />
+              </Routes>
+            </Suspense>
+          </main>
+        </div>
+        {aparienciaAbierta && <DialogoApariencia onCerrar={() => setAparienciaAbierta(false)} />}
+      </PageLayout>
+    </SidebarProvider>
+    </TooltipProvider>
   );
 }

@@ -58,6 +58,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -72,18 +73,22 @@ function montar(ruta: string) {
 
 const vistas = [{ ruta: "/estado", enlace: "Estado del lab", titulo: "Estado del lab" }];
 
-// Vistas de LABORATORIO: ya no están en el sidebar del chat, solo se llega vía el menú de usuario.
-const vistasLaboratorio = [
+// Vistas de "Agente": grupo siempre visible en el sidebar (con el rol ver_agentes).
+const vistasAgente = [
   { ruta: "/agentes", enlace: "Agentes", titulo: "Agentes" },
   { ruta: "/base-de-datos", enlace: "Base de datos", titulo: "Base de datos" },
   { ruta: "/memoria", enlace: "Memoria vectorizada", titulo: "Memoria vectorizada" },
   { ruta: "/herramientas", enlace: "Herramientas MCP", titulo: "Herramientas MCP" },
+];
+
+// Vistas de "Pruebas" (Identidad): ocultas por defecto, solo con VITE_MOSTRAR_PRUEBAS=true.
+const vistasPruebas = [
   { ruta: "/menu-por-rol", enlace: "Menú por rol", titulo: "Menú por rol" },
   { ruta: "/usuarios", enlace: "Usuarios y roles", titulo: "Usuarios y roles" },
 ];
 
-// Vistas de FINANZAS: sección propia del sidebar (mismo patrón que LABORATORIO). Inversiones (desplegable)
-// y Chat de Finanzas (sin h1) se prueban por separado.
+// Vistas de "Finanzas": grupo siempre visible (con el rol ver-finanzas). Inversiones (siempre con MX/USA
+// visibles) y Chat de Finanzas (sin h1) se prueban por separado.
 const vistasFinanzas = [
   { ruta: "/finanzas/resumen", enlace: "Resumen", titulo: "Finanzas" },
   { ruta: "/finanzas/gastos", enlace: "Gastos", titulo: "Finanzas" },
@@ -140,8 +145,8 @@ describe("login", () => {
     montar("/chat");
 
     const botonUsuario = await screen.findByRole("button", { name: /^ana/ });
-    fireEvent.click(botonUsuario);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Configuración" }));
+    fireEvent.pointerDown(botonUsuario);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Configuración" }));
     expect(screen.getByRole("dialog", { name: "Apariencia" })).toBeTruthy();
 
     fireEvent.keyDown(document, { key: "Escape" });
@@ -345,8 +350,8 @@ describe("sidebar y rutas", () => {
     expect(screen.getByRole("link", { name: vista.enlace }).getAttribute("aria-current")).toBe("page");
   });
 
-  it.each(vistasLaboratorio)(
-    "Laboratorio: la entrada $enlace abre su vista y marca aria-current",
+  it.each(vistasAgente)(
+    "Agente: la entrada $enlace abre su vista y marca aria-current",
     async (vista) => {
       prepararFetch();
 
@@ -354,9 +359,34 @@ describe("sidebar y rutas", () => {
 
       expect(await screen.findByRole("heading", { name: vista.titulo, level: 1 })).toBeTruthy();
       expect(screen.getByRole("link", { name: vista.enlace }).getAttribute("aria-current")).toBe("page");
-      expect(screen.getByRole("button", { name: "Volver al chat" })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Agente", level: 2 })).toBeTruthy();
     },
   );
+
+  it.each(vistasPruebas)(
+    "Pruebas (tras VITE_MOSTRAR_PRUEBAS): la entrada $enlace abre su vista y marca aria-current",
+    async (vista) => {
+      vi.stubEnv("VITE_MOSTRAR_PRUEBAS", "true");
+      prepararFetch();
+
+      montar(vista.ruta);
+
+      expect(await screen.findByRole("heading", { name: vista.titulo, level: 1 })).toBeTruthy();
+      expect(screen.getByRole("link", { name: vista.enlace }).getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("heading", { name: "Pruebas", level: 2 })).toBeTruthy();
+    },
+  );
+
+  it("sin VITE_MOSTRAR_PRUEBAS el grupo Pruebas no aparece en el sidebar", async () => {
+    prepararFetch();
+
+    montar("/chat");
+    await screen.findByRole("heading", { name: /Hola, ana/ });
+
+    expect(screen.queryByRole("heading", { name: "Pruebas" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Menú por rol" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Usuarios y roles" })).toBeNull();
+  });
 
   it.each(vistasFinanzas)(
     "Finanzas: la entrada $enlace abre su vista y marca aria-current",
@@ -367,8 +397,7 @@ describe("sidebar y rutas", () => {
 
       expect(await screen.findByRole("heading", { name: vista.titulo, level: 1 })).toBeTruthy();
       expect(screen.getByRole("link", { name: vista.enlace }).getAttribute("aria-current")).toBe("page");
-      expect(screen.getByRole("button", { name: "Volver al chat" })).toBeTruthy();
-      expect(screen.getByRole("heading", { name: "FINANZAS", level: 2 })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "Finanzas", level: 2 })).toBeTruthy();
     },
   );
 
@@ -379,59 +408,52 @@ describe("sidebar y rutas", () => {
 
     expect(await screen.findByRole("heading", { name: "Asistente de finanzas", level: 2 })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Chat de Finanzas" }).getAttribute("aria-current")).toBe("page");
-    expect(screen.getByRole("button", { name: "Volver al chat" })).toBeTruthy();
   });
 
-  it("Finanzas: Inversiones es un desplegable cerrado con MX y USA como hijos", async () => {
+  it("Finanzas: Inversiones muestra MX y USA siempre visibles como hijos", async () => {
     prepararFetch();
 
     montar("/finanzas/resumen");
 
-    const boton = await screen.findByRole("button", { name: "Inversiones" });
-    expect(boton.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("link", { name: "MX" })).toBeNull();
-
-    fireEvent.click(boton);
-
-    expect(boton.getAttribute("aria-expanded")).toBe("true");
-    const mx = screen.getByRole("link", { name: "MX" });
+    expect(await screen.findByRole("link", { name: "MX" })).toBeTruthy();
     const usa = screen.getByRole("link", { name: "USA" });
-    expect(boton.getAttribute("aria-controls")).toBe(mx.closest('[role="group"]')?.id);
     expect(usa).toBeTruthy();
 
-    fireEvent.click(mx);
+    fireEvent.click(screen.getByRole("link", { name: "MX" }));
 
     expect(await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta MX" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "MX" }).getAttribute("aria-current")).toBe("page");
   });
 
-  it("Finanzas: Inversiones arranca abierto si la ruta activa es MX o USA", async () => {
+  it("Finanzas: Inversiones marca aria-current en MX o USA según la ruta activa", async () => {
     prepararFetch();
 
     montar("/finanzas/inversiones/usa");
 
-    const boton = await screen.findByRole("button", { name: "Inversiones" });
-    expect(boton.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("link", { name: "USA" }).getAttribute("aria-current")).toBe("page");
+    expect(await screen.findByRole("link", { name: "USA" })).toHaveProperty(
+      "ariaCurrent",
+      "page",
+    );
     expect(await screen.findByRole("heading", { name: "Aún no hay portafolio de la cuenta USA" })).toBeTruthy();
   });
 
-  it("el menú de usuario abre Configuración y lleva a Laboratorio", async () => {
+  it("el menú de usuario abre Configuración", async () => {
     prepararFetch();
 
     montar("/chat");
-    fireEvent.click(await screen.findByRole("button", { name: /^ana/ }));
+    const botonUsuario = await screen.findByRole("button", { name: /^ana/ });
+    fireEvent.pointerDown(botonUsuario);
+    fireEvent.pointerUp(botonUsuario);
 
-    const menu = screen.getByRole("menu", { name: "Usuario" });
+    const menu = await screen.findByRole("menu", { name: "ana" });
     expect(within(menu).getByRole("menuitem", { name: "Configuración" })).toBeTruthy();
 
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Laboratorio" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Configuración" }));
 
-    expect(await screen.findByRole("heading", { name: "Agentes", level: 1 })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "LABORATORIO", level: 2 })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Apariencia" })).toBeTruthy();
   });
 
-  it("no ofrece MENÚ, Buscar chats, Configuración ni la entrada Chat suelta", async () => {
+  it("no ofrece MENÚ ni Buscar chats; sí ofrece la entrada Chat del sidebar", async () => {
     prepararFetch([], menu);
 
     montar("/chat");
@@ -439,12 +461,10 @@ describe("sidebar y rutas", () => {
 
     expect(screen.queryByText("MENÚ")).toBeNull();
     expect(screen.queryByText("Buscar chats")).toBeNull();
-    expect(screen.queryByText("Configuración")).toBeNull();
-    expect(screen.queryByRole("link", { name: "Chat" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Reportes" })).toBeNull();
-    for (const titulo of ["LABORATORIO", "FINANZAS"]) {
-      expect(screen.queryByText(titulo)).toBeNull();
-    }
+    expect(screen.getByRole("link", { name: "Chat" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("heading", { name: "Finanzas", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Agente", level: 2 })).toBeTruthy();
     expect(screen.getByText("RECIENTES")).toBeTruthy();
     expect(screen.getByText("ver-menu · LOCAL")).toBeTruthy();
   });
@@ -453,41 +473,27 @@ describe("sidebar y rutas", () => {
     prepararFetch();
 
     montar("/chat");
+    const barra = (await screen.findByRole("link", { name: "Estado del lab" })).closest(
+      '[data-slot="sidebar"]',
+    ) as HTMLElement;
+    expect(barra.getAttribute("data-state")).toBe("expanded");
+
     fireEvent.click(await screen.findByRole("button", { name: "Contraer barra lateral" }));
 
-    // Contraída: el riel sigue ofreciendo el enlace como ícono (con título), pero ya no muestra RECIENTES.
+    expect(barra.getAttribute("data-state")).toBe("collapsed");
+    // Contraída: el enlace sigue en el DOM (icono + tooltip), no desaparece.
     expect(screen.getByRole("link", { name: "Estado del lab" })).toBeTruthy();
-    expect(screen.queryByText("RECIENTES")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar barra lateral" }));
 
-    expect(screen.getByRole("link", { name: "Estado del lab" })).toBeTruthy();
-    expect(screen.getByText("RECIENTES")).toBeTruthy();
+    expect(barra.getAttribute("data-state")).toBe("expanded");
   });
 
-  it("Nuevo chat lleva a /chat desde otra vista", async () => {
+  it("Chat lleva a /chat (y arranca un chat nuevo) desde otra vista", async () => {
     prepararFetch();
 
     montar("/estado");
-    fireEvent.click(await screen.findByRole("button", { name: "Nuevo chat" }));
-
-    expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
-  });
-
-  it("Volver al chat lleva a /chat desde una vista de Laboratorio", async () => {
-    prepararFetch();
-
-    montar("/agentes");
-    fireEvent.click(await screen.findByRole("button", { name: "Volver al chat" }));
-
-    expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
-  });
-
-  it("Volver al chat lleva a /chat desde una vista de Finanzas", async () => {
-    prepararFetch();
-
-    montar("/finanzas/resumen");
-    fireEvent.click(await screen.findByRole("button", { name: "Volver al chat" }));
+    fireEvent.click(await screen.findByRole("link", { name: "Chat" }));
 
     expect(await screen.findByRole("heading", { name: /Hola, ana/ })).toBeTruthy();
   });
@@ -547,8 +553,8 @@ describe("sidebar y rutas", () => {
 
     expect(await screen.findByRole("heading", { name: /Hola, beto/ })).toBeTruthy();
     expect(screen.getByText("Estado del lab")).toBeTruthy();
-    for (const titulo of ["LABORATORIO", "FINANZAS"]) {
-      expect(screen.queryByText(titulo)).toBeNull();
+    for (const titulo of ["Agente", "Finanzas", "Pruebas"]) {
+      expect(screen.queryByRole("heading", { name: titulo })).toBeNull();
     }
     for (const enlace of [
       "Agentes",
