@@ -127,6 +127,10 @@
      generado ordena mal las variantes. shell = barra lateral fija (debe coincidir con useVistaEstrecha). */
   --breakpoint-shell: 61.25rem;
   --breakpoint-wide: 73.75rem;
+  /* El md: de Tailwind lo fija (hardcodeado) src/components/ui/sidebar.tsx para decidir entre el
+     Sidebar fijo y su Sheet móvil; se redefine a 980px para que coincida con useIsMobile ->
+     useVistaEstrecha (ver src/hooks/use-mobile.ts) y no haya una franja 768–980px donde ambos difieran. */
+  --breakpoint-md: 61.25rem;
 
   --radius-button: 9px;
   --radius-card: 13px;
