@@ -7,9 +7,22 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* shadcn/tailwind.css usa @variant dark (utility shimmer); nadie pone la clase .dark en Lara — el tema
-   viaja por light-dark()/data-theme —, pero el custom variant debe existir para que el CSS compile. */
-@custom-variant dark (&:is(.dark *));
+/*
+ * El mecanismo real de tema de Lara es data-theme en <html> ("Apariencia") con fallback a
+ * prefers-color-scheme (ver :root[data-theme] más abajo); nadie pone la clase .dark. Las utilidades
+ * dark: de shadcn (botones, menús...) deben disparar con ese mecanismo, no con .dark, para no quedar
+ * muertas: oscuro forzado, o sin override y el sistema prefiere oscuro.
+ */
+@custom-variant dark {
+  &:where(:root[data-theme="oscuro"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="claro"]):not([data-theme="oscuro"]) *) {
+      @slot;
+    }
+  }
+}
 
 @theme {
   --color-neutral-50: #fafafa;
