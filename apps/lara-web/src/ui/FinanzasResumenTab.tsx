@@ -2,37 +2,57 @@ import { Link } from "react-router";
 import type { ResumenFinanciero } from "../application/use-cases/ObtenerResumenFinanciero";
 import type { Moneda } from "../domain/MovimientoFinanciero";
 import { Card } from "./components/Card";
-import { EstadoVacio } from "./components/EstadoVacio";
 import { claseBotonSobreResaltado, ProximoPago } from "./components/ProximoPago";
 import { claseFoco } from "./components/foco";
 import { Tag } from "./components/Tag";
-import { etiquetaOrigen, fechaCorta, formatoMoneda } from "./finanzasFormato";
+import { etiquetaOrigen, fechaCorta, formatoMoneda, mesCorto, textoEnDias } from "./finanzasFormato";
 
 interface FinanzasResumenTabProps {
   datos: ResumenFinanciero;
-  /** Fecha de hoy AAAA-MM-DD. */
-  hoy: string;
   moneda: Moneda;
   periodo: string;
 }
 
+interface KpiProps {
+  titulo: string;
+  valor: string;
+  detalle?: string;
+}
+
 const coloresBarra = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"];
 const maximoMovimientos = 5;
-const textoSinTotales =
-  "Aún no disponible: el servicio de finanzas todavía no entrega los totales del mes (ingresos, gastos y lo que te queda).";
 const enlaceClase = `inline-flex min-h-11 items-center text-compact text-accent underline hover:text-accent-hover shell:min-h-0 ${claseFoco}`;
 
+/** Una de las 3 tarjetas de totales del mes (mockup 12): título, cifra grande y un detalle opcional. */
+function Kpi({ titulo, valor, detalle }: KpiProps) {
+  return (
+    <Card>
+      <span className="text-compact text-faint">{titulo}</span>
+      <span className="num text-title font-semibold tracking-tight">{valor}</span>
+      {detalle && <span className="num text-xs text-faint">{detalle}</span>}
+    </Card>
+  );
+}
+
 /**
- * Resumen de finanzas: próximo pago, gastos por categoría, próximos pagos y últimos movimientos.
- * Los totales que requieren calcular importes quedan en estado vacío hasta que el servicio los expone.
+ * Resumen de finanzas: próximo pago, totales del mes, ingresos vs gastos de 6 meses, gastos por
+ * categoría, próximos pagos y últimos movimientos. Todo en la moneda elegida en el encabezado: nunca
+ * se suman MXN y USD, así que si ambas tuvieron movimientos el periodo se repasa cambiando de moneda.
  * @author Daniel Tovar
  * @since 2026-09-30
  * @modified Daniel Tovar 2026-10-10 Textos sin jerga de backlog.
  * @modified Daniel Tovar 2026-10-10 Últimos movimientos en 3 columnas (el origen va bajo el concepto): el monto ya no queda cortado.
  * @modified Daniel Tovar 2026-10-10 Bloque de próximo pago destacado y un solo aviso en lugar de 3 KPIs vacíos (mockup 12).
+ * @modified Daniel Tovar 2026-10-11 FIN-17: conecta los 3 KPIs y la gráfica de 6 meses con el backend real
+ * (totalesMensuales y serieMensual); el próximo pago usa evento.ultimos4 y evento.diasRestantes.
+ * @modified Daniel Tovar 2026-11-03 "Próximos pagos" muestra "en N días" (evento.diasRestantes) en vez del
+ * Tag de tipo, como en el mockup 12.
  */
-export function FinanzasResumenTab({ datos, hoy, moneda, periodo }: FinanzasResumenTabProps) {
+export function FinanzasResumenTab({ datos, moneda, periodo }: FinanzasResumenTabProps) {
   const proximoPago = datos.eventos.find((evento) => evento.tipo === "PAGO");
+  const totales = datos.totalesMensuales.find((fila) => fila.moneda === moneda);
+  const serie = datos.serieMensual.filter((punto) => punto.moneda === moneda);
+  const maximoSerie = Math.max(1, ...serie.flatMap((punto) => [punto.ingresos, punto.gastos]));
   const categorias = datos.resumen
     .filter((fila) => fila.tipo === "GASTO" && fila.moneda === moneda)
     .sort((a, b) => b.total - a.total);
@@ -51,20 +71,70 @@ export function FinanzasResumenTab({ datos, hoy, moneda, periodo }: FinanzasResu
           </Link>
         }
         evento={proximoPago}
-        hoy={hoy}
-        tarjeta={datos.tarjetas.find((tarjeta) => tarjeta.alias === proximoPago?.alias)}
       />
 
-      <EstadoVacio mensaje={textoSinTotales} />
+      <div className="grid grid-cols-1 gap-4 wide:grid-cols-3">
+        <Kpi titulo="Ingresos del mes" valor={formatoMoneda[moneda].format(totales?.ingresos ?? 0)} />
+        <Kpi titulo="Gastos del mes" valor={formatoMoneda[moneda].format(totales?.gastos ?? 0)} />
+        <Kpi
+          detalle={`${(totales?.porcentajeTeQueda ?? 0).toLocaleString("es-MX", { maximumFractionDigits: 1 })}% del ingreso`}
+          titulo="Te queda"
+          valor={formatoMoneda[moneda].format(totales?.teQueda ?? 0)}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 wide:grid-cols-2">
         <Card aria-labelledby="serie-titulo">
-          <h2 className="m-0 text-base font-semibold" id="serie-titulo">
-            Ingresos vs gastos · 6 meses
-          </h2>
-          <p className="m-0 text-sm text-faint">
-            Aún no disponible: el servicio de finanzas todavía no entrega la serie de los últimos meses.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="m-0 text-base font-semibold" id="serie-titulo">
+              Ingresos vs gastos · 6 meses
+            </h2>
+            <ul className="m-0 flex list-none gap-3.5 p-0 text-xs text-muted">
+              <li className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="size-2.5 rounded-sm bg-chart-1" />
+                Ingresos
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="size-2.5 rounded-sm bg-chart-2" />
+                Gastos
+              </li>
+            </ul>
+          </div>
+          {serie.every((punto) => punto.ingresos === 0 && punto.gastos === 0) ? (
+            <p className="m-0 text-sm text-muted">
+              No hay movimientos en {moneda} en los últimos 6 meses.
+            </p>
+          ) : (
+            <>
+              <div
+                aria-label={`Ingresos y gastos mensuales en ${moneda} de los últimos 6 meses`}
+                className="flex h-42 items-end gap-4.5 border-b border-divider pt-3"
+                role="img"
+              >
+                {serie.map((punto) => (
+                  <div className="flex h-full flex-grow items-end justify-center gap-1" key={punto.periodo}>
+                    <div
+                      aria-hidden="true"
+                      className="w-3.5 rounded-t bg-chart-1"
+                      style={{ height: `${(punto.ingresos / maximoSerie) * 100}%` }}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="w-3.5 rounded-t bg-chart-2"
+                      style={{ height: `${(punto.gastos / maximoSerie) * 100}%` }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-4.5 text-xs text-faint">
+                {serie.map((punto) => (
+                  <span className="flex-grow text-center" key={punto.periodo}>
+                    {mesCorto(punto.periodo)}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </Card>
 
         <Card aria-labelledby="categorias-titulo">
@@ -127,9 +197,9 @@ export function FinanzasResumenTab({ datos, hoy, moneda, periodo }: FinanzasResu
                   <span className="truncate">
                     {evento.tipo === "PAGO" ? "Pago" : "Corte"} · {evento.alias}
                   </span>
-                  <Tag suave={evento.tipo === "CORTE"}>
-                    {evento.tipo === "PAGO" ? "pago" : "corte"}
-                  </Tag>
+                  <span className="num text-right text-faint">
+                    {textoEnDias(evento.diasRestantes)}
+                  </span>
                 </li>
               ))}
             </ul>

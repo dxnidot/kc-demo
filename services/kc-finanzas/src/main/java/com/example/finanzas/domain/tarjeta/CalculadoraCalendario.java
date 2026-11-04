@@ -2,6 +2,7 @@ package com.example.finanzas.domain.tarjeta;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.List;
  * Calcula eventos de corte y pago sin aplicar ajustes por días inhábiles.
  * @author Daniel Tovar
  * @since 2026-09-30
+ * @modified Daniel Tovar 2026-10-11 Incluye ultimos4 y diasRestantes en cada evento (FIN-17)
  */
 public class CalculadoraCalendario {
 
@@ -31,10 +33,10 @@ public class CalculadoraCalendario {
                 if (!tarjeta.activa()) {
                     continue;
                 }
-                agregarSiEnRango(eventos, fechaDelMes(mes, tarjeta.diaCorte()), TipoEvento.CORTE, tarjeta.alias(),
+                agregarSiEnRango(eventos, fechaDelMes(mes, tarjeta.diaCorte()), TipoEvento.CORTE, tarjeta,
                         desde, hasta);
                 agregarSiEnRango(eventos, fechaDelMes(mes.plusMonths(1), tarjeta.diaPago()), TipoEvento.PAGO,
-                        tarjeta.alias(), desde, hasta);
+                        tarjeta, desde, hasta);
             }
             mes = mes.plusMonths(1);
         }
@@ -54,11 +56,12 @@ public class CalculadoraCalendario {
             List<EventoCalendario> eventos,
             LocalDate fecha,
             TipoEvento tipo,
-            String alias,
+            Tarjeta tarjeta,
             LocalDate desde,
             LocalDate hasta) {
         if (!fecha.isBefore(desde) && !fecha.isAfter(hasta)) {
-            eventos.add(new EventoCalendario(fecha, tipo, alias));
+            eventos.add(new EventoCalendario(
+                    fecha, tipo, tarjeta.alias(), tarjeta.ultimos4(), ChronoUnit.DAYS.between(desde, fecha)));
         }
     }
 }

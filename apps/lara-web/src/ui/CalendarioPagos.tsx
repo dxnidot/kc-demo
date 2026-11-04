@@ -81,6 +81,7 @@ function Marcador({ tipo }: { tipo: "PAGO" | "CORTE" }) {
  * con el teclado (flechas, Inicio, Fin, RePág y AvPág) y su detalle aparece debajo. Solo muestra tarjetas activas.
  * @author Daniel Tovar
  * @since 2026-10-10
+ * @modified Daniel Tovar 2026-10-11 FIN-17: usa evento.ultimos4 del servicio en vez de buscar la tarjeta por alias.
  */
 export function CalendarioPagos({ finanzas, tarjetas, hoy, fechaInicial }: CalendarioPagosProps) {
   const inicial = fechaInicial ?? hoy;
@@ -297,7 +298,8 @@ export function CalendarioPagos({ finanzas, tarjetas, hoy, fechaInicial }: Calen
         ) : (
           <ul aria-label="Eventos del día" className="m-0 flex list-none flex-col gap-2 p-0">
             {delDiaSeleccionado.map((evento) => {
-              const tarjeta = tarjetas.find((candidata) => candidata.alias === evento.alias);
+              // "en N días" se calcula contra "hoy" (no contra el "desde" de esta consulta, que es el
+              // día 1 del mes visible): evento.diasRestantes no sirve aquí al navegar otros meses.
               const dias = diasEntre(hoy, evento.fecha);
               return (
                 <li
@@ -307,7 +309,7 @@ export function CalendarioPagos({ finanzas, tarjetas, hoy, fechaInicial }: Calen
                   <Tag suave={evento.tipo === "CORTE"}>{evento.tipo === "PAGO" ? "pago" : "corte"}</Tag>
                   <span>
                     {evento.alias}
-                    {tarjeta && <span className="ml-2 font-mono text-muted">{enmascarar(tarjeta.ultimos4)}</span>}
+                    <span className="ml-2 font-mono text-muted">{enmascarar(evento.ultimos4)}</span>
                   </span>
                   {dias >= 0 && <span className="num text-xs text-faint">{textoEnDias(dias)}</span>}
                 </li>

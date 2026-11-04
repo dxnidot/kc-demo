@@ -12,13 +12,13 @@ const tarjetas: Tarjeta[] = [
   { id: "b", alias: "Tarjeta B", ultimos4: "5678", diaCorte: 25, diaPago: 6, permiteLiquidarMsiAnticipado: true, activa: true },
 ];
 const octubre: EventoCalendario[] = [
-  { fecha: "2026-10-01", tipo: "CORTE", alias: "Tarjeta A" },
-  { fecha: "2026-10-05", tipo: "PAGO", alias: "Tarjeta A" },
-  { fecha: "2026-10-06", tipo: "PAGO", alias: "Tarjeta B" },
-  { fecha: "2026-10-15", tipo: "PAGO", alias: "Tarjeta A" },
-  { fecha: "2026-10-15", tipo: "CORTE", alias: "Tarjeta B" },
+  { fecha: "2026-10-01", tipo: "CORTE", alias: "Tarjeta A", ultimos4: "1234", diasRestantes: 0 },
+  { fecha: "2026-10-05", tipo: "PAGO", alias: "Tarjeta A", ultimos4: "1234", diasRestantes: 4 },
+  { fecha: "2026-10-06", tipo: "PAGO", alias: "Tarjeta B", ultimos4: "5678", diasRestantes: 5 },
+  { fecha: "2026-10-15", tipo: "PAGO", alias: "Tarjeta A", ultimos4: "1234", diasRestantes: 14 },
+  { fecha: "2026-10-15", tipo: "CORTE", alias: "Tarjeta B", ultimos4: "5678", diasRestantes: 14 },
   // La API puede devolver el borde del mes siguiente: no debe pintarse en octubre.
-  { fecha: "2026-11-01", tipo: "CORTE", alias: "Tarjeta A" },
+  { fecha: "2026-11-01", tipo: "CORTE", alias: "Tarjeta A", ultimos4: "1234", diasRestantes: 31 },
 ];
 
 function puerto(consulta = vi.fn(async (_desde: string, _dias: number) => octubre)): FinanzasPort {
@@ -26,6 +26,8 @@ function puerto(consulta = vi.fn(async (_desde: string, _dias: number) => octubr
     listarTarjetas: vi.fn(),
     listarMovimientos: vi.fn(),
     consultarResumenMensual: vi.fn(),
+    consultarTotalesMensuales: vi.fn(),
+    consultarSerieMensual: vi.fn(),
     consultarCalendario: consulta,
     actualizarTarjeta: vi.fn(),
     previsualizarImportacion: vi.fn(),

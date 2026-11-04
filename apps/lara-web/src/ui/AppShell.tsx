@@ -19,6 +19,7 @@ import {
   TextAlignStart,
   TrendingUp,
   Users,
+  Wallet,
   Waypoints,
   Wrench,
   X,
@@ -388,6 +389,14 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
     }
   }
 
+  function irAFinanzas() {
+    setMenuUsuarioAbierto(false);
+    setRutaDrawer(null);
+    if (itemsFinanzas[0]) {
+      navigate(itemsFinanzas[0].ruta);
+    }
+  }
+
   function iniciarChatNuevo() {
     setError(null);
     setActiveSessionId(null);
@@ -663,6 +672,17 @@ function AppShellLayout({ usuario }: AppShellLayoutProps) {
                       <SunMoon aria-hidden="true" className={iconoNav} />
                       Configuración
                     </button>
+                    {itemsFinanzas.length > 0 && (
+                      <button
+                        className={`flex min-h-11 w-full items-center gap-2.5 rounded-button px-3 text-left text-sm text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFocoInterno}`}
+                        onClick={irAFinanzas}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <Wallet aria-hidden="true" className={iconoNav} />
+                        Finanzas
+                      </button>
+                    )}
                     {itemsLaboratorio.length > 0 && (
                       <button
                         className={`flex min-h-11 w-full items-center gap-2.5 rounded-button px-3 text-left text-sm text-text-2 transition-colors hover:bg-surface-hover hover:text-text ${claseFocoInterno}`}

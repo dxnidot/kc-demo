@@ -19,6 +19,7 @@ const etiquetasOrigen: Record<OrigenMovimiento, string> = {
   MANUAL: "manual",
   IMPORT: "archivo",
   NOTIFICACION: "notificación",
+  CHAT: "chat",
 };
 
 /** Etiqueta de origen tal como la muestra la interfaz. */
@@ -59,11 +60,17 @@ export function periodoActual(): string {
   return fechaLocalActual().slice(0, 7);
 }
 
+const formatoMesCorto = new Intl.DateTimeFormat("es-MX", { month: "short", timeZone: "UTC" });
 const formatoMes = new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "UTC" });
 const formatoMesLargo = new Intl.DateTimeFormat("es-MX", { month: "long", day: "numeric", timeZone: "UTC" });
 
 function capitalizar(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Periodo AAAA-MM como "abr" (mes abreviado en minúsculas, para el eje de la gráfica de 6 meses). */
+export function mesCorto(periodo: string): string {
+  return formatoMesCorto.format(aFechaUtc(`${periodo}-01`)).replace(/\.$/, "");
 }
 
 /** Periodo AAAA-MM como "Septiembre 2026". */

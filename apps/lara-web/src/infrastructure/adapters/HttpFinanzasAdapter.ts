@@ -4,8 +4,10 @@ import type {
   Moneda,
   MovimientoFinanciero,
   OrigenMovimiento,
+  PuntoSerieMensual,
   ResumenCategoriaFinanciera,
   TipoMovimiento,
+  TotalesMensuales,
 } from "../../domain/MovimientoFinanciero";
 import type { Tarjeta } from "../../domain/Tarjeta";
 import type {
@@ -19,6 +21,7 @@ import { ApiHttpClient } from "./ApiHttpClient";
  * @author Daniel
  * @since 2026-09-30
  * @modified Daniel 2026-09-30 Integra la previsualización y confirmación CSV.
+ * @modified Daniel Tovar 2026-10-11 FIN-17: totales mensuales, serie de 6 meses y calendario con ultimos4/diasRestantes.
  */
 export class HttpFinanzasAdapter implements FinanzasPort {
   constructor(private readonly http: ApiHttpClient) {}
@@ -40,6 +43,28 @@ export class HttpFinanzasAdapter implements FinanzasPort {
     );
     if (!Array.isArray(response) || !response.every(esResumenCategoriaFinanciera)) {
       throw new Error("La API de finanzas devolvió un resumen mensual inválido.");
+    }
+    return response;
+  }
+
+  async consultarTotalesMensuales(periodo: string): Promise<TotalesMensuales[]> {
+    const query = new URLSearchParams({ periodo });
+    const response = await this.http.solicitar(
+      `/api/finanzas/movimientos/totales-mensuales?${query.toString()}`,
+    );
+    if (!Array.isArray(response) || !response.every(esTotalesMensuales)) {
+      throw new Error("La API de finanzas devolvió totales mensuales inválidos.");
+    }
+    return response;
+  }
+
+  async consultarSerieMensual(periodo: string): Promise<PuntoSerieMensual[]> {
+    const query = new URLSearchParams({ periodo });
+    const response = await this.http.solicitar(
+      `/api/finanzas/movimientos/serie-mensual?${query.toString()}`,
+    );
+    if (!Array.isArray(response) || !response.every(esPuntoSerieMensual)) {
+      throw new Error("La API de finanzas devolvió una serie mensual inválida.");
     }
     return response;
   }
@@ -164,7 +189,48 @@ function esTipoMovimiento(value: unknown): value is TipoMovimiento {
 }
 
 function esOrigenMovimiento(value: unknown): value is OrigenMovimiento {
-  return value === "MANUAL" || value === "IMPORT" || value === "NOTIFICACION";
+  return (
+    value === "MANUAL" || value === "IMPORT" || value === "NOTIFICACION" || value === "CHAT"
+  );
+}
+
+function esTotalesMensuales(value: unknown): value is TotalesMensuales {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "moneda" in value &&
+    esMoneda(value.moneda) &&
+    "ingresos" in value &&
+    typeof value.ingresos === "number" &&
+    Number.isFinite(value.ingresos) &&
+    "gastos" in value &&
+    typeof value.gastos === "number" &&
+    Number.isFinite(value.gastos) &&
+    "teQueda" in value &&
+    typeof value.teQueda === "number" &&
+    Number.isFinite(value.teQueda) &&
+    "porcentajeTeQueda" in value &&
+    typeof value.porcentajeTeQueda === "number" &&
+    Number.isFinite(value.porcentajeTeQueda)
+  );
+}
+
+function esPuntoSerieMensual(value: unknown): value is PuntoSerieMensual {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "periodo" in value &&
+    typeof value.periodo === "string" &&
+    /^\d{4}-\d{2}$/.test(value.periodo) &&
+    "moneda" in value &&
+    esMoneda(value.moneda) &&
+    "ingresos" in value &&
+    typeof value.ingresos === "number" &&
+    Number.isFinite(value.ingresos) &&
+    "gastos" in value &&
+    typeof value.gastos === "number" &&
+    Number.isFinite(value.gastos)
+  );
 }
 
 function esTarjeta(value: unknown): value is Tarjeta {
@@ -199,7 +265,13 @@ function esEventoCalendario(value: unknown): value is EventoCalendario {
     "tipo" in value &&
     (value.tipo === "CORTE" || value.tipo === "PAGO") &&
     "alias" in value &&
-    typeof value.alias === "string"
+    typeof value.alias === "string" &&
+    "ultimos4" in value &&
+    typeof value.ultimos4 === "string" &&
+    /^[0-9]{4}$/.test(value.ultimos4) &&
+    "diasRestantes" in value &&
+    typeof value.diasRestantes === "number" &&
+    Number.isInteger(value.diasRestantes)
   );
 }
 

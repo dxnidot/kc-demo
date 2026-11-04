@@ -1,15 +1,11 @@
 import type { ReactNode } from "react";
 import type { EventoCalendario } from "../../domain/EventoCalendario";
-import type { Tarjeta } from "../../domain/Tarjeta";
-import { diasEntre, enmascarar, fechaConDiaSemana, textoEnDias } from "../finanzasFormato";
+import { enmascarar, fechaConDiaSemana, textoEnDias } from "../finanzasFormato";
 
 interface ProximoPagoProps {
-  /** Próximo evento de tipo PAGO; sin él se muestra que no hay pagos próximos. */
+  /** Próximo evento de tipo PAGO, con ultimos4 y diasRestantes ya calculados por el servicio; sin él se
+   * muestra que no hay pagos próximos. */
   evento?: EventoCalendario;
-  /** Tarjeta del evento, para mostrar sus últimos cuatro dígitos enmascarados. */
-  tarjeta?: Tarjeta;
-  /** Fecha de hoy AAAA-MM-DD, para calcular "en N días". */
-  hoy: string;
   /** Acción del bloque ("Ver calendario"). */
   accion?: ReactNode;
 }
@@ -22,8 +18,10 @@ export const claseBotonSobreResaltado =
  * Bloque destacado de "Próximo pago" (Resumen y Tarjetas y pagos): alias, ••••, fecha y "en N días".
  * @author Daniel Tovar
  * @since 2026-10-10
+ * @modified Daniel Tovar 2026-10-11 FIN-17: usa evento.ultimos4 y evento.diasRestantes del servicio
+ * (ya no recibe la tarjeta ni "hoy" para calcularlos en el front).
  */
-export function ProximoPago({ evento, tarjeta, hoy, accion }: ProximoPagoProps) {
+export function ProximoPago({ evento, accion }: ProximoPagoProps) {
   return (
     <section
       aria-label="Próximo pago"
@@ -35,12 +33,10 @@ export function ProximoPago({ evento, tarjeta, hoy, accion }: ProximoPagoProps) 
           <>
             <span className="text-xl font-semibold">
               {evento.alias}
-              {tarjeta && (
-                <span className="ml-2 font-mono text-body font-medium">{enmascarar(tarjeta.ultimos4)}</span>
-              )}
+              <span className="ml-2 font-mono text-body font-medium">{enmascarar(evento.ultimos4)}</span>
             </span>
             <span className="num text-sm text-highlight-muted">
-              {fechaConDiaSemana(evento.fecha)} · {textoEnDias(diasEntre(hoy, evento.fecha))}
+              {fechaConDiaSemana(evento.fecha)} · {textoEnDias(evento.diasRestantes)}
             </span>
           </>
         ) : (

@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.finanzas.application.usecases.ActualizarMovimiento;
 import com.example.finanzas.application.usecases.ConsultarResumenMensual;
+import com.example.finanzas.application.usecases.ConsultarSerieMensual;
+import com.example.finanzas.application.usecases.ConsultarTotalesMensuales;
 import com.example.finanzas.application.usecases.CrearMovimiento;
 import com.example.finanzas.application.usecases.EliminarMovimiento;
 import com.example.finanzas.application.usecases.ListarMovimientos;
@@ -35,7 +37,7 @@ import com.example.finanzas.domain.movimiento.Movimiento;
  * Adapta las solicitudes HTTP a las operaciones de movimientos y resumen mensual.
  * @author Daniel Tovar
  * @since 2026-09-30
- * @modified 2026-09-30
+ * @modified Daniel Tovar 2026-10-11 Agrega totales-mensuales y serie-mensual (FIN-17)
  */
 @RestController
 @RequestMapping("/api/finanzas/movimientos")
@@ -47,6 +49,8 @@ public class MovimientosController {
     private final ActualizarMovimiento actualizarMovimiento;
     private final EliminarMovimiento eliminarMovimiento;
     private final ConsultarResumenMensual consultarResumenMensual;
+    private final ConsultarTotalesMensuales consultarTotalesMensuales;
+    private final ConsultarSerieMensual consultarSerieMensual;
     private final OwnerSubResolver ownerSubResolver;
 
     public MovimientosController(
@@ -56,6 +60,8 @@ public class MovimientosController {
             ActualizarMovimiento actualizarMovimiento,
             EliminarMovimiento eliminarMovimiento,
             ConsultarResumenMensual consultarResumenMensual,
+            ConsultarTotalesMensuales consultarTotalesMensuales,
+            ConsultarSerieMensual consultarSerieMensual,
             OwnerSubResolver ownerSubResolver) {
         this.crearMovimiento = crearMovimiento;
         this.listarMovimientos = listarMovimientos;
@@ -63,6 +69,8 @@ public class MovimientosController {
         this.actualizarMovimiento = actualizarMovimiento;
         this.eliminarMovimiento = eliminarMovimiento;
         this.consultarResumenMensual = consultarResumenMensual;
+        this.consultarTotalesMensuales = consultarTotalesMensuales;
+        this.consultarSerieMensual = consultarSerieMensual;
         this.ownerSubResolver = ownerSubResolver;
     }
 
@@ -138,6 +146,26 @@ public class MovimientosController {
             @RequestHeader(value = "X-User-Sub", required = false) String requestedOwnerSub) {
         return consultarResumenMensual.ejecutar(resolvedOwnerSub(jwt, requestedOwnerSub), periodo).stream()
                 .map(ResumenCategoriaResponse::desde)
+                .toList();
+    }
+
+    @GetMapping("/totales-mensuales")
+    public List<TotalesMensualesResponse> totalesMensuales(
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "X-User-Sub", required = false) String requestedOwnerSub) {
+        return consultarTotalesMensuales.ejecutar(resolvedOwnerSub(jwt, requestedOwnerSub), periodo).stream()
+                .map(TotalesMensualesResponse::desde)
+                .toList();
+    }
+
+    @GetMapping("/serie-mensual")
+    public List<PuntoSerieMensualResponse> serieMensual(
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "X-User-Sub", required = false) String requestedOwnerSub) {
+        return consultarSerieMensual.ejecutar(resolvedOwnerSub(jwt, requestedOwnerSub), periodo).stream()
+                .map(PuntoSerieMensualResponse::desde)
                 .toList();
     }
 

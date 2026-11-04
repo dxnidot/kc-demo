@@ -1,6 +1,6 @@
 # FIN-17 · Totales mensuales, serie de 6 meses y calendario enriquecido
 
-- Estado: Pendiente
+- Estado: Hecho
 - Prioridad: Media
 - Parte del lab: FIN
 - Depende de: FIN-11, FIN-10
@@ -20,5 +20,7 @@
 - Notas:
   - Confirmado: agente a cargo: `java-spring`.
   - Confirmado: fuera de alcance el desglose fijos vs variables y "comprometido en fijos"; dependen de FIN-03.
-  - Pendiente: mientras no exista `diasRestantes`, Lara calcula "en N días" como diferencia de fechas solo para mostrar (UI-08); al cerrar esta historia la UI debe usar el valor del servicio.
-  - Pendiente: mientras no existan los totales, el Resumen muestra un solo aviso con esta historia en lugar de KPIs.
+  - Confirmado (2026-10-11): `kc-finanzas` expone `GET /api/finanzas/movimientos/totales-mensuales?periodo=yyyy-MM` (ingresos, gastos, `teQueda` y `porcentajeTeQueda` por moneda, sin mezclarlas) y `GET /api/finanzas/movimientos/serie-mensual?periodo=yyyy-MM` (6 meses × moneda, con ceros donde no hay movimientos). `GET /api/finanzas/calendario` ahora devuelve `ultimos4` y `diasRestantes` por evento, calculados por `CalculadoraCalendario`. `OrigenMovimiento` agrega `CHAT` (migración `V3__add_chat_origen.sql`); el endpoint de creación de movimientos ya aceptaba cualquier valor del enum en el body, así que no hizo falta más cableado para que el agente registre movimientos con ese origen. 42/42 pruebas del servicio pasan.
+  - Confirmado (2026-10-11): Lara ya no calcula "en N días" en el front para `ProximoPago` ni los tiles de próximo pago de `FinanzasTarjetasTab` — usan `evento.diasRestantes` del servicio. El Resumen reemplazó el aviso por los 3 KPIs reales y la gráfica "Ingresos vs gastos · 6 meses" del mockup 12, filtrados por la moneda del segmentado (nunca se suman MXN y USD). `CalendarioPagos.tsx` (que navega por mes) sigue calculando el día localmente a propósito, documentado en el código: `evento.diasRestantes` de esa consulta es relativo al mes visible, no a "hoy", así que usarlo ahí daría cifras incorrectas al navegar a otro mes; sí adoptó `evento.ultimos4` del servicio. 414/414 pruebas de `lara-web` pasan, `npm run build` limpio.
+  - Confirmado (2026-11-03): la lista "Próximos pagos" de `FinanzasResumenTab` ahora muestra "en N días" (`evento.diasRestantes`) en vez del Tag de tipo, como en el mockup 12.
+  - Cerrado: 2026-10-11.

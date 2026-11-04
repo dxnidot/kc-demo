@@ -8,7 +8,7 @@ import { claseBotonSobreResaltado, ProximoPago } from "./components/ProximoPago"
 import { EstadoVacio } from "./components/EstadoVacio";
 import { Pill } from "./components/Pill";
 import { Switch } from "./components/Switch";
-import { diasEntre, enmascarar, textoEnDias } from "./finanzasFormato";
+import { enmascarar, textoEnDias } from "./finanzasFormato";
 import { comportamientoDeScroll } from "./movimientoReducido";
 
 interface FinanzasTarjetasTabProps {
@@ -32,6 +32,7 @@ function contar(cantidad: number, singular: string): string {
  * @modified Daniel Tovar 2026-09-30 Foco del switch hacia adentro para que la tabla con scroll no lo recorte.
  * @modified Daniel Tovar 2026-10-10 Usa el componente Switch (44px táctiles y pista apagada con contraste).
  * @modified Daniel Tovar 2026-10-10 Rediseño según el mockup 14: próximo pago, tiles y calendario en cuadrícula.
+ * @modified Daniel Tovar 2026-10-11 FIN-17: usa evento.diasRestantes del servicio (ya no diasEntre local).
  */
 export function FinanzasTarjetasTab({
   eventos,
@@ -85,8 +86,6 @@ export function FinanzasTarjetasTab({
           </button>
         }
         evento={proximoPago}
-        hoy={hoy}
-        tarjeta={tarjetas.find((tarjeta) => tarjeta.alias === proximoPago?.alias)}
       />
 
       {error && (
@@ -156,7 +155,7 @@ export function FinanzasTarjetasTab({
                               : "bg-surface-active text-text-2"
                           }`}
                         >
-                          Pago {textoEnDias(diasEntre(hoy, pago.fecha))}
+                          Pago {textoEnDias(pago.diasRestantes)}
                         </span>
                       ) : (
                         <span className="text-xs text-faint">Sin pago en 30 días</span>

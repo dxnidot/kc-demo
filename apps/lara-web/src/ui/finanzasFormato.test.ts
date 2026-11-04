@@ -4,6 +4,7 @@ import {
   diasEntre,
   etiquetaPeriodo,
   fechaLarga,
+  mesCorto,
   moverPeriodo,
   textoActualizado,
   textoEnDias,
@@ -26,6 +27,11 @@ describe("periodo", () => {
     expect(diasDelPeriodo("2026-10")).toBe(31);
     expect(diasDelPeriodo("2026-02")).toBe(28);
     expect(diasDelPeriodo("2028-02")).toBe(29);
+  });
+
+  it("abrevia el mes en minúsculas para el eje de la gráfica de 6 meses", () => {
+    expect(mesCorto("2026-04")).toBe("abr");
+    expect(mesCorto("2026-09")).toBe("sep");
   });
 });
 

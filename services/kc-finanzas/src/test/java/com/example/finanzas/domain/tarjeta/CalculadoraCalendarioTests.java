@@ -29,9 +29,9 @@ class CalculadoraCalendarioTests {
                 29);
 
         assertEquals(List.of(
-                new EventoCalendario(LocalDate.of(2027, 1, 31), TipoEvento.CORTE, "Oro"),
-                new EventoCalendario(LocalDate.of(2027, 2, 5), TipoEvento.PAGO, "Oro"),
-                new EventoCalendario(LocalDate.of(2027, 2, 28), TipoEvento.CORTE, "Oro")), eventos);
+                new EventoCalendario(LocalDate.of(2027, 1, 31), TipoEvento.CORTE, "Oro", "1234", 0),
+                new EventoCalendario(LocalDate.of(2027, 2, 5), TipoEvento.PAGO, "Oro", "1234", 5),
+                new EventoCalendario(LocalDate.of(2027, 2, 28), TipoEvento.CORTE, "Oro", "1234", 28)), eventos);
     }
 
     @Test
@@ -45,7 +45,7 @@ class CalculadoraCalendarioTests {
                 5);
 
         assertEquals(List.of(
-                new EventoCalendario(LocalDate.of(2027, 1, 5), TipoEvento.PAGO, "Viajes")), eventos);
+                new EventoCalendario(LocalDate.of(2027, 1, 5), TipoEvento.PAGO, "Viajes", "1234", 4)), eventos);
     }
 
     @Test
@@ -60,8 +60,8 @@ class CalculadoraCalendarioTests {
                 6);
 
         assertEquals(List.of(
-                new EventoCalendario(LocalDate.of(2027, 3, 10), TipoEvento.CORTE, "Azul"),
-                new EventoCalendario(LocalDate.of(2027, 3, 15), TipoEvento.PAGO, "Azul")), eventos);
+                new EventoCalendario(LocalDate.of(2027, 3, 10), TipoEvento.CORTE, "Azul", "1234", 0),
+                new EventoCalendario(LocalDate.of(2027, 3, 15), TipoEvento.PAGO, "Azul", "1234", 5)), eventos);
     }
 
     @Test
@@ -75,8 +75,8 @@ class CalculadoraCalendarioTests {
                 6);
 
         assertEquals(List.of(
-                new EventoCalendario(LocalDate.of(2026, 12, 31), TipoEvento.CORTE, "Clasica"),
-                new EventoCalendario(LocalDate.of(2027, 1, 5), TipoEvento.PAGO, "Clasica")), eventos);
+                new EventoCalendario(LocalDate.of(2026, 12, 31), TipoEvento.CORTE, "Clasica", "1234", 0),
+                new EventoCalendario(LocalDate.of(2027, 1, 5), TipoEvento.PAGO, "Clasica", "1234", 5)), eventos);
     }
 
     private Tarjeta tarjeta(String alias, int diaCorte, int diaPago, boolean activa) {

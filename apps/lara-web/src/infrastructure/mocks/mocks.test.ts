@@ -154,6 +154,46 @@ describe("MockFinanzasAdapter", () => {
     expect(await nuevo().consultarResumenMensual("1999-01")).toEqual([]);
   });
 
+  it("calcula los totales mensuales por moneda sin mezclar ingresos y gastos", async () => {
+    const totales = await nuevo().consultarTotalesMensuales(periodo);
+
+    expect(totales.find((t) => t.moneda === "MXN")).toEqual({
+      moneda: "MXN",
+      ingresos: 33500,
+      gastos: 13666.4,
+      teQueda: 19833.6,
+      porcentajeTeQueda: 59.2,
+    });
+    expect(totales.find((t) => t.moneda === "USD")).toEqual({
+      moneda: "USD",
+      ingresos: 0,
+      gastos: 12.99,
+      teQueda: -12.99,
+      porcentajeTeQueda: 0,
+    });
+    expect(await nuevo().consultarTotalesMensuales("1999-01")).toEqual([]);
+  });
+
+  it("la serie mensual trae 6 meses x 2 monedas, con ceros donde no hay movimientos de ejemplo", async () => {
+    const serie = await nuevo().consultarSerieMensual(periodo);
+
+    expect(serie).toHaveLength(12);
+    expect(serie.map((p) => p.periodo)).toEqual([
+      "2026-05", "2026-05", "2026-06", "2026-06", "2026-07", "2026-07",
+      "2026-08", "2026-08", "2026-09", "2026-09", "2026-10", "2026-10",
+    ]);
+    expect(serie.filter((p) => p.periodo === "2026-05")).toEqual([
+      { periodo: "2026-05", moneda: "MXN", ingresos: 0, gastos: 0 },
+      { periodo: "2026-05", moneda: "USD", ingresos: 0, gastos: 0 },
+    ]);
+    expect(serie.find((p) => p.periodo === "2026-10" && p.moneda === "MXN")).toEqual({
+      periodo: "2026-10",
+      moneda: "MXN",
+      ingresos: 33500,
+      gastos: 13666.4,
+    });
+  });
+
   it("calcula el calendario de los próximos 30 días solo con tarjetas activas, ordenado por fecha", async () => {
     const eventos = await nuevo().consultarCalendario("2026-10-10", 30);
 
@@ -161,8 +201,20 @@ describe("MockFinanzasAdapter", () => {
     expect(eventos.map((e) => e.fecha)).toEqual([...eventos.map((e) => e.fecha)].sort());
     expect(eventos.every((e) => e.fecha >= "2026-10-10" && e.fecha <= "2026-11-09")).toBe(true);
     expect(eventos.some((e) => e.alias === "Tarjeta D")).toBe(false);
-    expect(eventos).toContainEqual({ fecha: "2026-10-15", tipo: "PAGO", alias: "Tarjeta C" });
-    expect(eventos).toContainEqual({ fecha: "2026-10-15", tipo: "CORTE", alias: "Tarjeta A" });
+    expect(eventos).toContainEqual({
+      fecha: "2026-10-15",
+      tipo: "PAGO",
+      alias: "Tarjeta C",
+      ultimos4: "9012",
+      diasRestantes: 5,
+    });
+    expect(eventos).toContainEqual({
+      fecha: "2026-10-15",
+      tipo: "CORTE",
+      alias: "Tarjeta A",
+      ultimos4: "1234",
+      diasRestantes: 5,
+    });
   });
 
   it("actualizar una tarjeta se queda en memoria y la saca del calendario si queda inactiva", async () => {

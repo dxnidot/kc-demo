@@ -11,9 +11,10 @@ import { useResumenFinanciero } from "./useResumenFinanciero";
  * Antes era la pestaña "Resumen" de una sola página; ahora es su propia ruta del sidebar.
  * @author Daniel Tovar
  * @since 2026-10-11
+ * @modified Daniel Tovar 2026-10-11 FIN-17: ya no pasa "hoy" a FinanzasResumenTab (lo calcula el backend).
  */
 export function FinanzasResumenPage() {
-  const { cargando, datos, error, hoy, minutos, moneda, periodo, reintentar, setMoneda, setPeriodo } =
+  const { cargando, datos, error, minutos, moneda, periodo, reintentar, setMoneda, setPeriodo } =
     useResumenFinanciero();
 
   return (
@@ -32,7 +33,7 @@ export function FinanzasResumenPage() {
     >
       {cargando && <FinanzasCargando />}
       {!cargando && error && <EstadoError mensaje={error} onReintentar={reintentar} />}
-      {datos && <FinanzasResumenTab datos={datos} hoy={hoy} moneda={moneda} periodo={periodo} />}
+      {datos && <FinanzasResumenTab datos={datos} moneda={moneda} periodo={periodo} />}
     </PageLayout>
   );
 }

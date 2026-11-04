@@ -27,8 +27,10 @@ import com.example.finanzas.application.ports.TarjetaRepository;
 import com.example.finanzas.domain.movimiento.Moneda;
 import com.example.finanzas.domain.movimiento.Movimiento;
 import com.example.finanzas.domain.movimiento.OrigenMovimiento;
+import com.example.finanzas.domain.movimiento.PuntoSerieMensual;
 import com.example.finanzas.domain.movimiento.ResumenCategoria;
 import com.example.finanzas.domain.movimiento.TipoMovimiento;
+import com.example.finanzas.domain.movimiento.TotalesMensuales;
 import com.example.finanzas.domain.tarjeta.Tarjeta;
 import com.example.finanzas.domain.tarjeta.TarjetaNoEncontradaException;
 
@@ -52,6 +54,8 @@ class MovimientoUseCasesTests {
     private ListarMovimientos listarMovimientos;
     private EliminarMovimiento eliminarMovimiento;
     private ConsultarResumenMensual consultarResumenMensual;
+    private ConsultarTotalesMensuales consultarTotalesMensuales;
+    private ConsultarSerieMensual consultarSerieMensual;
 
     @BeforeEach
     void setUp() {
@@ -61,6 +65,8 @@ class MovimientoUseCasesTests {
         listarMovimientos = new ListarMovimientos(movimientoRepository);
         eliminarMovimiento = new EliminarMovimiento(movimientoRepository);
         consultarResumenMensual = new ConsultarResumenMensual(movimientoRepository);
+        consultarTotalesMensuales = new ConsultarTotalesMensuales(movimientoRepository);
+        consultarSerieMensual = new ConsultarSerieMensual(movimientoRepository);
     }
 
     @Test
@@ -146,6 +152,67 @@ class MovimientoUseCasesTests {
     }
 
     @Test
+    @DisplayName("Calcula ingresos, gastos y lo que queda por moneda sin combinarlas")
+    void calculatesTotalsPerCurrencyWithoutMixingThem() {
+        // Arrange
+        List<Movimiento> movimientos = List.of(
+                movimiento("1000.00", Moneda.MXN, TipoMovimiento.INGRESO, "Nómina"),
+                movimiento("300.00", Moneda.MXN, TipoMovimiento.GASTO, "Comida"),
+                movimiento("50.00", Moneda.USD, TipoMovimiento.GASTO, "Streaming"));
+        when(movimientoRepository.listarPorPropietarioYPeriodo(
+                "usuario-prueba", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30)))
+                .thenReturn(movimientos);
+
+        // Act
+        List<TotalesMensuales> resultado =
+                consultarTotalesMensuales.ejecutar("usuario-prueba", YearMonth.of(2026, 9));
+
+        // Assert
+        assertEquals(2, resultado.size());
+        TotalesMensuales mxn = resultado.get(0);
+        assertEquals(Moneda.MXN, mxn.moneda());
+        assertEquals(new BigDecimal("1000.00"), mxn.ingresos());
+        assertEquals(new BigDecimal("300.00"), mxn.gastos());
+        assertEquals(new BigDecimal("700.00"), mxn.teQueda());
+        assertEquals(new BigDecimal("70.00"), mxn.porcentajeTeQueda());
+        TotalesMensuales usd = resultado.get(1);
+        assertEquals(Moneda.USD, usd.moneda());
+        assertEquals(BigDecimal.ZERO, usd.ingresos());
+        assertEquals(new BigDecimal("50.00"), usd.gastos());
+        assertEquals(new BigDecimal("-50.00"), usd.teQueda());
+        assertEquals(new BigDecimal("0.00"), usd.porcentajeTeQueda());
+    }
+
+    @Test
+    @DisplayName("Construye la serie de 6 meses con ceros en los meses y monedas sin movimientos")
+    void buildsSixMonthSeriesWithZerosWhenNoMovements() {
+        // Arrange
+        List<Movimiento> movimientos = List.of(
+                movimientoEn(LocalDate.of(2026, 9, 10), "800.00", Moneda.MXN, TipoMovimiento.INGRESO),
+                movimientoEn(LocalDate.of(2026, 9, 12), "200.00", Moneda.MXN, TipoMovimiento.GASTO));
+        when(movimientoRepository.listarPorPropietarioYPeriodo(
+                "usuario-prueba", LocalDate.of(2026, 4, 1), LocalDate.of(2026, 9, 30)))
+                .thenReturn(movimientos);
+
+        // Act
+        List<PuntoSerieMensual> serie =
+                consultarSerieMensual.ejecutar("usuario-prueba", YearMonth.of(2026, 9));
+
+        // Assert
+        assertEquals(12, serie.size());
+        PuntoSerieMensual septiembreMxn = serie.stream()
+                .filter(punto -> punto.periodo().equals(YearMonth.of(2026, 9)) && punto.moneda() == Moneda.MXN)
+                .findFirst().orElseThrow();
+        assertEquals(new BigDecimal("800.00"), septiembreMxn.ingresos());
+        assertEquals(new BigDecimal("200.00"), septiembreMxn.gastos());
+        PuntoSerieMensual abrilUsd = serie.stream()
+                .filter(punto -> punto.periodo().equals(YearMonth.of(2026, 4)) && punto.moneda() == Moneda.USD)
+                .findFirst().orElseThrow();
+        assertEquals(BigDecimal.ZERO, abrilUsd.ingresos());
+        assertEquals(BigDecimal.ZERO, abrilUsd.gastos());
+    }
+
+    @Test
     @DisplayName("Consulta, lista y elimina usando siempre el propietario autenticado")
     void scopesReadListAndDeleteToAuthenticatedOwner() {
         // Arrange
@@ -171,10 +238,19 @@ class MovimientoUseCasesTests {
     }
 
     private Movimiento movimiento(String monto, Moneda moneda, TipoMovimiento tipo, String categoria) {
+        return movimientoEn(LocalDate.of(2026, 9, 10), monto, moneda, tipo, categoria);
+    }
+
+    private Movimiento movimientoEn(LocalDate fecha, String monto, Moneda moneda, TipoMovimiento tipo) {
+        return movimientoEn(fecha, monto, moneda, tipo, "Varios");
+    }
+
+    private Movimiento movimientoEn(
+            LocalDate fecha, String monto, Moneda moneda, TipoMovimiento tipo, String categoria) {
         return new Movimiento(
                 UUID.randomUUID(),
                 "usuario-prueba",
-                LocalDate.of(2026, 9, 10),
+                fecha,
                 new BigDecimal(monto),
                 moneda,
                 "Comercio demo",

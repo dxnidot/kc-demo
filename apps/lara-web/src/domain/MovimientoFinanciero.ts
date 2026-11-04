@@ -2,6 +2,7 @@
  * Movimiento financiero ya clasificado por el servicio de finanzas.
  * @author Daniel
  * @since 2026-09-30
+ * @modified Daniel Tovar 2026-10-11 FIN-17: el origen admite "CHAT".
  */
 export interface MovimientoFinanciero {
   id: string;
@@ -34,4 +35,30 @@ export type Moneda = "MXN" | "USD";
 export type TipoMovimiento = "GASTO" | "INGRESO";
 
 /** Canales de origen admitidos por la API financiera. */
-export type OrigenMovimiento = "MANUAL" | "IMPORT" | "NOTIFICACION";
+export type OrigenMovimiento = "MANUAL" | "IMPORT" | "NOTIFICACION" | "CHAT";
+
+/**
+ * Totales de ingresos, gastos y "te queda" de un mes en una moneda; el servicio ya calcula
+ * `teQueda` (ingresos − gastos) y `porcentajeTeQueda` (0 si `ingresos` es 0).
+ * @author Daniel Tovar
+ * @since 2026-10-11
+ */
+export interface TotalesMensuales {
+  moneda: Moneda;
+  ingresos: number;
+  gastos: number;
+  teQueda: number;
+  porcentajeTeQueda: number;
+}
+
+/**
+ * Punto de la serie de 6 meses (hasta el periodo consultado, incluido) de ingresos y gastos por moneda.
+ * @author Daniel Tovar
+ * @since 2026-10-11
+ */
+export interface PuntoSerieMensual {
+  periodo: string;
+  moneda: Moneda;
+  ingresos: number;
+  gastos: number;
+}

@@ -35,9 +35,9 @@ const tarjetaInactiva: Tarjeta = {
   activa: false,
 };
 const eventos: EventoCalendario[] = [
-  { fecha: "2030-10-03", tipo: "CORTE", alias: "Tarjeta de prueba" },
-  { fecha: "2030-10-06", tipo: "PAGO", alias: "Otra tarjeta" },
-  { fecha: "2030-10-25", tipo: "PAGO", alias: "Tarjeta de prueba" },
+  { fecha: "2030-10-03", tipo: "CORTE", alias: "Tarjeta de prueba", ultimos4: "0042", diasRestantes: 2 },
+  { fecha: "2030-10-06", tipo: "PAGO", alias: "Otra tarjeta", ultimos4: "5511", diasRestantes: 5 },
+  { fecha: "2030-10-25", tipo: "PAGO", alias: "Tarjeta de prueba", ultimos4: "0042", diasRestantes: 24 },
 ];
 
 function puertoFalso(actualizar = vi.fn(async (tarjeta: Tarjeta) => tarjeta)): FinanzasPort {
@@ -45,6 +45,8 @@ function puertoFalso(actualizar = vi.fn(async (tarjeta: Tarjeta) => tarjeta)): F
     listarTarjetas: vi.fn(),
     listarMovimientos: vi.fn(),
     consultarResumenMensual: vi.fn(),
+    consultarTotalesMensuales: vi.fn(),
+    consultarSerieMensual: vi.fn(),
     consultarCalendario: vi.fn(async () => eventos),
     actualizarTarjeta: actualizar,
     previsualizarImportacion: vi.fn(),

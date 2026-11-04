@@ -6,8 +6,10 @@ import type {
   Moneda,
   MovimientoFinanciero,
   OrigenMovimiento,
+  PuntoSerieMensual,
   ResumenCategoriaFinanciera,
   TipoMovimiento,
+  TotalesMensuales,
 } from "../../domain/MovimientoFinanciero";
 import type { Tarjeta } from "../../domain/Tarjeta";
 
@@ -68,10 +70,29 @@ function diasDelMes(anio: number, mes: number): number {
   return new Date(anio, mes + 1, 0).getDate();
 }
 
+const monedas: readonly Moneda[] = ["MXN", "USD"];
+
+/** Los 6 periodos AAAA-MM hasta `periodoFinal` (incluido), de más antiguo a más reciente. */
+function periodosHastaSeisMeses(periodoFinal: string): string[] {
+  const [anioFinal, mesFinal] = periodoFinal.split("-").map(Number);
+  return Array.from({ length: 6 }, (_, indice) => {
+    const desplazamiento = 5 - indice;
+    const fecha = new Date(anioFinal, mesFinal - 1 - desplazamiento, 1);
+    return `${fecha.getFullYear()}-${dos(fecha.getMonth() + 1)}`;
+  });
+}
+
+function sumar(movimientos: readonly MovimientoFinanciero[], tipo: TipoMovimiento): number {
+  return redondear(
+    movimientos.filter((movimiento) => movimiento.tipo === tipo).reduce((total, movimiento) => total + movimiento.monto, 0),
+  );
+}
+
 /**
  * Cumple FinanzasPort con tarjetas, movimientos, resumen y calendario de ejemplo calculados al vuelo.
  * @author Daniel Tovar
  * @since 2026-10-10
+ * @modified Daniel Tovar 2026-10-11 FIN-17: totales mensuales, serie de 6 meses y ultimos4/diasRestantes en el calendario.
  */
 export class MockFinanzasAdapter implements FinanzasPort {
   private tarjetas: Tarjeta[] = tarjetasIniciales.map((tarjeta) => ({ ...tarjeta }));
@@ -106,6 +127,44 @@ export class MockFinanzasAdapter implements FinanzasPort {
     return Promise.resolve(Array.from(totales.values()));
   }
 
+  // MOCK: totales calculados al vuelo a partir de los movimientos de ejemplo, una moneda por fila (nunca se mezclan).
+  consultarTotalesMensuales(periodo: string): Promise<TotalesMensuales[]> {
+    const resultado: TotalesMensuales[] = [];
+    for (const moneda of monedas) {
+      const delMes = this.movimientos.filter(
+        (movimiento) => movimiento.fecha.startsWith(periodo) && movimiento.moneda === moneda,
+      );
+      if (delMes.length === 0) {
+        continue;
+      }
+      const ingresos = sumar(delMes, "INGRESO");
+      const gastos = sumar(delMes, "GASTO");
+      const teQueda = redondear(ingresos - gastos);
+      const porcentajeTeQueda = ingresos > 0 ? Math.round((teQueda / ingresos) * 10000) / 100 : 0;
+      resultado.push({ moneda, ingresos, gastos, teQueda, porcentajeTeQueda });
+    }
+    return Promise.resolve(resultado);
+  }
+
+  // MOCK: 6 meses × 2 monedas siempre, con ceros donde no hay movimientos de ejemplo.
+  consultarSerieMensual(periodo: string): Promise<PuntoSerieMensual[]> {
+    const puntos: PuntoSerieMensual[] = [];
+    for (const periodoMes of periodosHastaSeisMeses(periodo)) {
+      for (const moneda of monedas) {
+        const delMes = this.movimientos.filter(
+          (movimiento) => movimiento.fecha.startsWith(periodoMes) && movimiento.moneda === moneda,
+        );
+        puntos.push({
+          periodo: periodoMes,
+          moneda,
+          ingresos: sumar(delMes, "INGRESO"),
+          gastos: sumar(delMes, "GASTO"),
+        });
+      }
+    }
+    return Promise.resolve(puntos);
+  }
+
   consultarCalendario(desde: string, dias: number): Promise<EventoCalendario[]> {
     const [anio, mes, dia] = desde.split("-").map(Number);
     const inicio = new Date(anio, mes - 1, dia);
@@ -117,7 +176,14 @@ export class MockFinanzasAdapter implements FinanzasPort {
         for (const [tipo, diaDelMes] of [["PAGO", tarjeta.diaPago], ["CORTE", tarjeta.diaCorte]] as const) {
           const fecha = new Date(base.getFullYear(), base.getMonth(), Math.min(diaDelMes, diasDelMes(base.getFullYear(), base.getMonth())));
           if (fecha >= inicio && fecha <= fin) {
-            eventos.push({ fecha: iso(fecha), tipo, alias: tarjeta.alias });
+            const diasRestantes = Math.round((fecha.getTime() - inicio.getTime()) / 86_400_000);
+            eventos.push({
+              fecha: iso(fecha),
+              tipo,
+              alias: tarjeta.alias,
+              ultimos4: tarjeta.ultimos4,
+              diasRestantes,
+            });
           }
         }
       }

@@ -1,30 +1,23 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Tarjeta } from "../../domain/Tarjeta";
+import type { EventoCalendario } from "../../domain/EventoCalendario";
 import { ProximoPago } from "./ProximoPago";
 
-const tarjeta: Tarjeta = {
-  id: "t1",
+const evento: EventoCalendario = {
+  fecha: "2026-10-05",
+  tipo: "PAGO",
   alias: "Tarjeta A",
   ultimos4: "1234",
-  diaCorte: 15,
-  diaPago: 5,
-  permiteLiquidarMsiAnticipado: false,
-  activa: true,
+  diasRestantes: 5,
 };
 
 afterEach(cleanup);
 
 describe("ProximoPago", () => {
-  it("muestra alias, ••••, fecha con día de la semana y en cuántos días", () => {
+  it("muestra alias, ••••, fecha con día de la semana y en cuántos días (del servicio)", () => {
     render(
-      <ProximoPago
-        accion={<button type="button">Ver calendario</button>}
-        evento={{ fecha: "2026-10-05", tipo: "PAGO", alias: "Tarjeta A" }}
-        hoy="2026-09-30"
-        tarjeta={tarjeta}
-      />,
+      <ProximoPago accion={<button type="button">Ver calendario</button>} evento={evento} />,
     );
 
     const bloque = screen.getByRole("region", { name: "Próximo pago" });
@@ -34,18 +27,16 @@ describe("ProximoPago", () => {
     expect(within(bloque).getByRole("button", { name: "Ver calendario" })).toBeTruthy();
   });
 
-  it("dice hoy y mañana cuando corresponde", () => {
-    const { rerender } = render(
-      <ProximoPago evento={{ fecha: "2026-10-05", tipo: "PAGO", alias: "Tarjeta A" }} hoy="2026-10-05" />,
-    );
+  it("dice hoy y mañana según diasRestantes", () => {
+    const { rerender } = render(<ProximoPago evento={{ ...evento, diasRestantes: 0 }} />);
     expect(screen.getByText(/· hoy$/)).toBeTruthy();
 
-    rerender(<ProximoPago evento={{ fecha: "2026-10-05", tipo: "PAGO", alias: "Tarjeta A" }} hoy="2026-10-04" />);
+    rerender(<ProximoPago evento={{ ...evento, diasRestantes: 1 }} />);
     expect(screen.getByText(/· mañana$/)).toBeTruthy();
   });
 
   it("sin evento dice que no hay pagos próximos y no muestra ••••", () => {
-    render(<ProximoPago hoy="2026-09-30" />);
+    render(<ProximoPago />);
 
     expect(screen.getByText("Sin pagos próximos")).toBeTruthy();
     expect(screen.getByText("No hay pagos en los próximos 30 días.")).toBeTruthy();
@@ -53,7 +44,7 @@ describe("ProximoPago", () => {
   });
 
   it("usa solo tokens: bloque highlight con su tinta", () => {
-    render(<ProximoPago hoy="2026-09-30" />);
+    render(<ProximoPago />);
 
     const bloque = screen.getByRole("region", { name: "Próximo pago" });
     expect(bloque.className).toContain("bg-highlight");
